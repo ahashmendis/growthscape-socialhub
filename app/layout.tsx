@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import { Providers } from "./providers";
-import "./globals.css";
+import "@/design-system/theme/themes.css";
 import { APP_NAME } from "@/lib/utils/constants";
 
 const inter = Inter({

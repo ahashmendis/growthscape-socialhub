@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { loginSchema, type LoginInput } from "../schemas";
@@ -12,10 +12,15 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 
+function getRedirectUrl(): string {
+  if (typeof window === "undefined") return "/dashboard";
+  const params = new URLSearchParams(window.location.search);
+  return params.get("redirect") || "/dashboard";
+}
+
 export function LoginForm() {
   const { supabase } = useSupabase();
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [isLoading, setIsLoading] = useState(false);
 
   const {
@@ -34,7 +39,7 @@ export function LoginForm() {
       if (error) throw error;
 
       toast.success("Welcome back!");
-      const redirect = searchParams.get("redirect") || "/dashboard";
+      const redirect = getRedirectUrl();
       router.push(redirect);
       router.refresh();
     } catch (error) {
