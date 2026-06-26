@@ -333,6 +333,7 @@ model Workspace {
   recommendations AIRecommendation[]
   aiUsages    AIUsage[]
   contentIdeas ContentIdea[]
+  goals       Goal[]
   auditLogs   AuditLog[]
   chatSessions ChatSession[]
   dashboardLayouts DashboardLayout[]
@@ -348,7 +349,7 @@ model WorkspaceMember {
   workspace   Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   userId      String
   user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role        MemberRole   @default(MEMBER)
+  role        MemberRole   @default(VIEWER)
   invitedAt   DateTime     @default(now())
   joinedAt    DateTime?
   createdAt   DateTime     @default(now())
@@ -436,6 +437,7 @@ model SocialAccount {
 
   credential      OAuthCredential?
   dailyAnalytics  DailyAnalytics[]
+  aggregatedAnalytics AggregatedAnalytics[]
   posts           ScheduledPost[]
   comments        SocialComment[]
   syncJobs        SyncJob[]
@@ -826,6 +828,7 @@ model ContentIdea {
   workspaceId String?
   workspace   Workspace?        @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
   brandId     String?
+  brand       Brand?            @relation(fields: [brandId], references: [id], onDelete: SetNull)
   category    String?
   platform    SocialPlatform?
   title       String
