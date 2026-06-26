@@ -17,6 +17,8 @@ import {
   Target,
   Workflow,
   Settings,
+  Shield,
+  Flag,
 } from "lucide-react";
 
 interface NavItem {
@@ -39,6 +41,8 @@ const navItems: NavItem[] = [
   { label: "Reports", href: "/dashboard/reports", icon: FileText },
   { label: "Goals", href: "/dashboard/goals", icon: Target },
   { label: "Automation", href: "/dashboard/automation", icon: Workflow },
+  { label: "Audit Log", href: "/dashboard/audit-log", icon: Shield },
+  { label: "Feature Flags", href: "/dashboard/feature-flags", icon: Flag },
   { label: "Settings", href: "/dashboard/settings", icon: Settings },
 ];
 
