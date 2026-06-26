@@ -1,4 +1,5 @@
-import { PageHeader } from "@/components/layout/page-header";
-export default function GoalsPage() {
-  return <div><PageHeader title="Goals" description="Goal tracking — coming in Phase 6" /></div>;
+import { GoalsPage } from "@/features/goals/components/goals-page";
+
+export default function GoalsPageWrapper() {
+  return <GoalsPage />;
 }
