@@ -1,4 +1,5 @@
-import { PageHeader } from "@/components/layout/page-header";
-export default function SchedulerPage() {
-  return <div><PageHeader title="Scheduler" description="Post scheduling — coming in Phase 4" /></div>;
+import { SchedulerPage } from "@/features/scheduler/components/scheduler-page";
+
+export default function SchedulerPageWrapper() {
+  return <SchedulerPage />;
 }

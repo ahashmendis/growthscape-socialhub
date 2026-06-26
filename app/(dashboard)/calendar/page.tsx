@@ -1,9 +1,5 @@
-import { PageHeader } from "@/components/layout/page-header";
+import { CalendarPage } from "@/features/calendar/components/calendar-page";
 
-export default function CalendarPage() {
-  return (
-    <div>
-      <PageHeader title="Calendar" description="Content calendar with drag-and-drop — coming in Phase 4" />
-    </div>
-  );
+export default function CalendarPageWrapper() {
+  return <CalendarPage />;
 }
