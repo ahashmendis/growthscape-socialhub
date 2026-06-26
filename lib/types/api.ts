@@ -39,4 +39,5 @@ export type ErrorCode =
   | "SYNC_FAILED"
   | "AI_PROVIDER_ERROR"
   | "PUBLISH_FAILED"
-  | "INTERNAL_ERROR";
+  | "INTERNAL_ERROR"
+  | "BAD_REQUEST";
