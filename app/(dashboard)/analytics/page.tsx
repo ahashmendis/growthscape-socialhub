@@ -1,9 +1,5 @@
-import { PageHeader } from "@/components/layout/page-header";
+import { AnalyticsPage } from "@/features/analytics/components/analytics-page";
 
-export default function AnalyticsPage() {
-  return (
-    <div>
-      <PageHeader title="Analytics" description="Cross-platform analytics — coming in Phase 3" />
-    </div>
-  );
+export default function AnalyticsPageWrapper() {
+  return <AnalyticsPage />;
 }
