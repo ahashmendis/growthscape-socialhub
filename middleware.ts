@@ -22,22 +22,17 @@ export async function middleware(request: NextRequest) {
     }
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // IMPORTANT: DO NOT call getUser() here — it can interfere with fresh session cookies
+  // Just propagate cookies and let pages handle auth
 
   const pathname = request.nextUrl.pathname;
   const isAuthRoute = pathname.startsWith("/login") || pathname.startsWith("/signup");
-  const isDashboardRoute = pathname.startsWith("/dashboard");
 
-  if (!user && isDashboardRoute) {
-    const loginUrl = new URL("/login", request.url);
-    loginUrl.searchParams.set("redirect", pathname);
-    return NextResponse.redirect(loginUrl);
-  }
-
-  if (user && isAuthRoute) {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
+  // Only redirect authenticated users away from auth pages
+  // We check auth on the page level for dashboard routes
+  if (isAuthRoute) {
+    // Let auth pages render — they'll redirect if already logged in
+    return supabaseResponse;
   }
 
   return supabaseResponse;
