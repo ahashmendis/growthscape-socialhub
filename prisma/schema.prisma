@@ -1,0 +1,1369 @@
+// Growthscape Social Hub — Prisma Schema
+// Production-grade, multi-tenant, AI-first social media platform
+// Target: PostgreSQL via Supabase
+// Designed for 5+ years of evolution
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// ENUMS
+// ============================================================
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum MemberRole {
+  OWNER
+  ADMIN
+  EDITOR
+  VIEWER
+}
+
+enum PlanTier {
+  FREE
+  STARTER
+  PRO
+  AGENCY
+}
+
+enum SocialPlatform {
+  FACEBOOK
+  INSTAGRAM
+  YOUTUBE
+  TIKTOK
+  THREADS
+  LINKEDIN
+  PINTEREST
+  X
+  BLUESKY
+  TWITCH
+  GOOGLE_MY_BUSINESS
+}
+
+enum PostStatus {
+  DRAFT
+  SCHEDULED
+  PUBLISHING
+  PUBLISHED
+  FAILED
+  DELETED
+}
+
+enum MediaType {
+  IMAGE
+  VIDEO
+  CAROUSEL
+  GIF
+  AUDIO
+  DOCUMENT
+}
+
+enum DraftStatus {
+  NEW
+  IN_REVIEW
+  APPROVED
+  REJECTED
+  SCHEDULED
+  PUBLISHED
+  ARCHIVED
+}
+
+enum PublishQueueStatus {
+  PENDING
+  PROCESSING
+  SENT
+  FAILED
+  RETRYING
+  CANCELLED
+}
+
+enum GoalType {
+  FOLLOWERS
+  SUBSCRIBERS
+  VIEWS
+  REACH
+  UPLOADS
+  ENGAGEMENT
+}
+
+enum GoalStatus {
+  ACTIVE
+  ACHIEVED
+  ARCHIVED
+}
+
+enum NotificationType {
+  UPLOAD_REMINDER
+  BEST_POSTING_WINDOW
+  VIRAL_ALERT
+  MILESTONE
+  FAILED_PUBLISHING
+  WEEKLY_SUMMARY
+  GOAL_ACHIEVED
+  SYSTEM
+}
+
+enum CommentSentiment {
+  POSITIVE
+  NEUTRAL
+  NEGATIVE
+}
+
+enum SyncJobStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  PARTIAL
+}
+
+enum SyncJobType {
+  ANALYTICS_FULL
+  ANALYTICS_INCREMENTAL
+  POSTS_SYNC
+  COMMENTS_SYNC
+  FOLLOWERS_SYNC
+  METADATA_SYNC
+}
+
+enum MemoryType {
+  VOICE
+  AUDIENCE
+  STYLE
+  GUIDELINES
+  PERFORMANCE
+  TOPICS
+  COMPETITIVE
+}
+
+enum MemorySource {
+  MANUAL
+  LEARNED
+  FROM_POST
+  FROM_ANALYTICS
+  FROM_CONVERSATION
+}
+
+enum RecommendationType {
+  POSTING_TIME
+  CONTENT_TYPE
+  HASHTAG
+  PLATFORM_STRATEGY
+  GROWTH_OPPORTUNITY
+  ENGAGEMENT_IMPROVEMENT
+  COMPETITIVE_INSIGHT
+  TREND_ALERT
+  COST_OPTIMIZATION
+}
+
+enum RecommendationStatus {
+  NEW
+  ACCEPTED
+  DISMISSED
+  EXPIRED
+  APPLIED
+}
+
+enum TrendSourceType {
+  GOOGLE_TRENDS
+  YOUTUBE_TRENDS
+  REDDIT
+  TWITTER_TRENDS
+  TIKTOK_TRENDS
+  MANUAL
+}
+
+enum ContentIdeaStatus {
+  NEW
+  REVIEWING
+  APPROVED
+  REJECTED
+  CONVERTED_TO_DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum ContentIdeaSource {
+  TREND
+  COMPETITOR
+  AI_MEMORY
+  AI_GENERATED
+  MANUAL
+}
+
+enum ReportType {
+  DAILY
+  WEEKLY
+  MONTHLY
+  QUARTERLY
+  ANNUAL
+  CUSTOM
+}
+
+enum ReportFormat {
+  PDF
+  CSV
+  EXCEL
+  JSON
+}
+
+enum ReportStatus {
+  PENDING
+  GENERATING
+  COMPLETED
+  FAILED
+}
+
+enum ChatRole {
+  SYSTEM
+  USER
+  ASSISTANT
+  TOOL
+}
+
+enum IntegrationStatus {
+  ACTIVE
+  INACTIVE
+  ERROR
+  PENDING
+}
+
+enum WebhookEvent {
+  POST_PUBLISHED
+  POST_FAILED
+  ANALYTICS_SYNCED
+  GOAL_ACHIEVED
+  COMMENT_RECEIVED
+  NEW_TREND
+  REPORT_READY
+  USER_INVITED
+  BRAND_CONNECTED
+  BRAND_DISCONNECTED
+}
+
+enum WebhookDeliveryStatus {
+  PENDING
+  DELIVERED
+  FAILED
+  RETRYING
+}
+
+enum AuditAction {
+  CREATED
+  UPDATED
+  DELETED
+  PUBLISHED
+  SCHEDULED
+  CONNECTED
+  DISCONNECTED
+  LOGIN
+  LOGOUT
+  INVITED
+  REMOVED
+  EXPORTED
+  IMPORTED
+}
+
+enum AggregationPeriod {
+  WEEKLY
+  MONTHLY
+  QUARTERLY
+  ANNUAL
+}
+
+// ============================================================
+// AUTHENTICATION & WORKSPACE
+// ============================================================
+
+model User {
+  id            String    @id // Supabase auth UUID, set on account creation
+  email         String    @unique
+  name          String?
+  avatarUrl     String?
+  role          UserRole  @default(USER)
+  emailVerified DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  memberships   WorkspaceMember[]
+  ownedWorkspaces Workspace[]                        @relation("WorkspaceOwner")
+  apiKeys       ApiKey[]
+  notifications Notification[]
+  goals         Goal[]
+  preferences   UserPreference?
+  chatSessions  ChatSession[]
+  auditLogs     AuditLog[]
+  aiUsage       AIUsage[]
+  dashboardLayouts DashboardLayout[]
+  savedViews    SavedView[]
+}
+
+model Workspace {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  logoUrl     String?
+  timezone    String   @default("UTC")
+  plan        PlanTier @default(FREE)
+  planExpiry  DateTime?
+  ownerId     String
+  owner       User     @relation("WorkspaceOwner", fields: [ownerId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  members     WorkspaceMember[]
+  brands      Brand[]
+  settings    WorkspaceSetting[]
+  integrations Integration[]
+  webhooks    Webhook[]
+  reports     Report[]
+  competitors Competitor[]
+  trends      Trend[]
+  syncJobs    SyncJob[]
+  recommendations AIRecommendation[]
+  aiUsages    AIUsage[]
+  contentIdeas ContentIdea[]
+  auditLogs   AuditLog[]
+  chatSessions ChatSession[]
+  dashboardLayouts DashboardLayout[]
+  savedViews  SavedView[]
+
+  @@index([ownerId])
+  @@index([slug])
+}
+
+model WorkspaceMember {
+  id          String       @id @default(cuid())
+  workspaceId String
+  workspace   Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role        MemberRole   @default(MEMBER)
+  invitedAt   DateTime     @default(now())
+  joinedAt    DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@unique([workspaceId, userId])
+  @@index([workspaceId])
+  @@index([userId])
+}
+
+// ============================================================
+// BRANDS & PERSONA
+// ============================================================
+
+model Brand {
+  id              String   @id @default(cuid())
+  workspaceId     String
+  workspace       Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name            String
+  slug            String?
+  logoUrl         String?
+  color           String?   // Brand accent color for UI
+  description     String?   @db.Text
+  website         String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+
+  socialAccounts  SocialAccount[]
+  drafts          Draft[]
+  scheduledPosts  ScheduledPost[]
+  aiMemories      AIMemory[]
+  persona         BrandPersona?
+  goals           Goal[]
+  mediaAssets     MediaAsset[]
+  contentIdeas    ContentIdea[]
+  competitors     Competitor[]
+  mediaAnalyses   MediaAnalysis[]
+  reports         Report[]
+  dashboardLayouts DashboardLayout[]
+
+  @@index([workspaceId])
+  @@index([workspaceId, deletedAt])
+  @@unique([workspaceId, slug])
+}
+
+model BrandPersona {
+  id                 String   @id @default(cuid())
+  brandId            String   @unique
+  brand              Brand    @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  tone               String[] @default([])          // ["witty", "professional", "casual"]
+  audience           String?  @db.Text              // Target audience description
+  writingStyle       String?  @db.Text              // Writing style guidelines
+  contentGoals       String[] @default([])          // ["awareness", "engagement", "conversion"]
+  preferredPlatforms SocialPlatform[] @default([])
+  preferredLanguages String[] @default(["en"])
+  prohibitedTopics   String[] @default([])
+  brandGuidelines    String?  @db.Text              // Full brand guidelines document
+  examples           Json?     // Example posts/content that match the brand voice
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([brandId])
+}
+
+// ============================================================
+// SOCIAL ACCOUNTS & OAUTH
+// ============================================================
+
+model SocialAccount {
+  id              String          @id @default(cuid())
+  brandId         String
+  brand           Brand           @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  platform        SocialPlatform
+  platformId      String          // External platform account ID
+  platformHandle  String?         // @username or page name
+  accountName     String          // Display name from platform
+  followers       Int             @default(0)
+  following       Int             @default(0)
+  isActive        Boolean         @default(true)
+  lastSyncedAt    DateTime?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  deletedAt       DateTime?
+
+  credential      OAuthCredential?
+  dailyAnalytics  DailyAnalytics[]
+  posts           ScheduledPost[]
+  comments        SocialComment[]
+  syncJobs        SyncJob[]
+  competitors     Competitor[]
+
+  @@unique([platform, platformId])
+  @@index([brandId])
+  @@index([platform])
+  @@index([brandId, isActive])
+}
+
+model OAuthCredential {
+  id              String   @id @default(cuid())
+  socialAccountId String   @unique
+  socialAccount   SocialAccount @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
+  accessToken     String   @db.Text
+  refreshToken    String?  @db.Text
+  tokenType       String   @default("Bearer")
+  expiresAt       DateTime?
+  scopes          String[] @default([])
+  lastRefreshedAt DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([socialAccountId])
+  @@index([expiresAt])
+}
+
+// ============================================================
+// CONTENT — DRAFT → SCHEDULE → PUBLISH → ANALYTICS
+// ============================================================
+
+model Draft {
+  id          String      @id @default(cuid())
+  brandId     String
+  brand       Brand       @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  title       String?
+  caption     String      @db.Text
+  hashtags    String[]    @default([])
+  status      DraftStatus @default(NEW)
+  notes       String?     @db.Text     // Internal collaboration notes
+  version     Int         @default(1)
+  createdBy   String?                  // userId
+  reviewedBy  String?                  // userId
+  reviewedAt  DateTime?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  deletedAt   DateTime?
+
+  media       DraftMedia[]
+  scheduledPost ScheduledPost?
+  contentIdea ContentIdea?
+
+  @@index([brandId, status])
+  @@index([brandId, deletedAt])
+  @@index([createdAt])
+}
+
+model DraftMedia {
+  id          String   @id @default(cuid())
+  draftId     String
+  draft       Draft    @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  type        MediaType
+  url         String
+  thumbnailUrl String?
+  width       Int?
+  height      Int?
+  altText     String?
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  @@index([draftId])
+}
+
+model ScheduledPost {
+  id              String          @id @default(cuid())
+  brandId         String
+  brand           Brand           @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  draftId         String?         @unique
+  draft           Draft?          @relation(fields: [draftId], references: [id])
+  socialAccountId String?
+  socialAccount   SocialAccount?  @relation(fields: [socialAccountId], references: [id])
+  status          PostStatus      @default(SCHEDULED)
+  title           String?
+  caption         String          @db.Text
+  hashtags        String[]        @default([])
+  scheduledFor    DateTime
+  publishedAt     DateTime?
+  platformPostId  String?         // ID returned by platform after publishing
+  platformUrl     String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  deletedAt       DateTime?
+
+  media           PostMedia[]
+  analytics       PostAnalytics[]
+  queueEntries    PublishQueue[]
+
+  @@index([brandId, status])
+  @@index([scheduledFor])
+  @@index([brandId, scheduledFor])
+  @@index([brandId, deletedAt])
+}
+
+model PostMedia {
+  id              String   @id @default(cuid())
+  scheduledPostId String
+  scheduledPost   ScheduledPost @relation(fields: [scheduledPostId], references: [id], onDelete: Cascade)
+  type            MediaType
+  url             String
+  thumbnailUrl    String?
+  width           Int?
+  height          Int?
+  altText         String?
+  order           Int      @default(0)
+  createdAt       DateTime @default(now())
+
+  @@index([scheduledPostId])
+}
+
+// ============================================================
+// PUBLISHING QUEUE
+// ============================================================
+
+model PublishQueue {
+  id              String             @id @default(cuid())
+  scheduledPostId String
+  scheduledPost   ScheduledPost      @relation(fields: [scheduledPostId], references: [id], onDelete: Cascade)
+  status          PublishQueueStatus @default(PENDING)
+  priority        Int                @default(0)    // Higher = more urgent
+  retryCount      Int                @default(0)
+  maxRetries      Int                @default(3)
+  failureReason   String?            @db.Text
+  nextRetryAt     DateTime?
+  sentAt          DateTime?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  @@index([status, nextRetryAt])
+  @@index([scheduledPostId])
+  @@index([priority, createdAt])
+}
+
+// ============================================================
+// ANALYTICS
+// ============================================================
+
+model DailyAnalytics {
+  id              String         @id @default(cuid())
+  socialAccountId String
+  socialAccount   SocialAccount  @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
+  date            DateTime       @db.Date
+  followers       Int            @default(0)
+  followersChange Int            @default(0)    // delta from previous day
+  impressions     Int            @default(0)
+  reach           Int            @default(0)
+  engagement      Int            @default(0)
+  engagementRate  Float          @default(0)    // percentage
+  likes           Int            @default(0)
+  comments        Int            @default(0)
+  shares          Int            @default(0)
+  saves           Int            @default(0)
+  views           Int            @default(0)
+  watchTimeSeconds Int           @default(0)
+  clicks          Int            @default(0)
+  postsPublished  Int            @default(0)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@unique([socialAccountId, date])
+  @@index([socialAccountId, date])
+  @@index([date])
+  @@index([socialAccountId])
+}
+
+model PostAnalytics {
+  id              String        @id @default(cuid())
+  scheduledPostId String
+  scheduledPost   ScheduledPost @relation(fields: [scheduledPostId], references: [id], onDelete: Cascade)
+  impressions     Int           @default(0)
+  reach           Int           @default(0)
+  engagement      Int           @default(0)
+  engagementRate  Float         @default(0)
+  likes           Int           @default(0)
+  comments        Int           @default(0)
+  shares          Int           @default(0)
+  saves           Int           @default(0)
+  views           Int           @default(0)
+  clicks          Int           @default(0)
+  videoViews      Int           @default(0)
+  avgWatchTime    Float         @default(0)    // seconds
+  scrapedAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([scheduledPostId])
+  @@index([scrapedAt])
+}
+
+model AggregatedAnalytics {
+  id              String            @id @default(cuid())
+  socialAccountId String
+  socialAccount   SocialAccount     @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
+  period          AggregationPeriod
+  periodStart     DateTime          @db.Date
+  periodEnd       DateTime          @db.Date
+  totalFollowers  Int               @default(0)
+  followerGrowth  Int               @default(0)
+  totalImpressions Int              @default(0)
+  totalReach      Int               @default(0)
+  totalEngagement Int               @default(0)
+  avgEngagementRate Float           @default(0)
+  totalLikes      Int               @default(0)
+  totalComments   Int               @default(0)
+  totalShares     Int               @default(0)
+  totalViews      Int               @default(0)
+  totalClicks     Int               @default(0)
+  postsPublished  Int               @default(0)
+  bestPerformingPostId String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@unique([socialAccountId, period, periodStart])
+  @@index([socialAccountId, period])
+  @@index([periodStart, periodEnd])
+}
+
+// ============================================================
+// SYNC JOBS
+// ============================================================
+
+model SyncJob {
+  id                String         @id @default(cuid())
+  workspaceId       String
+  workspace         Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  socialAccountId   String?
+  socialAccount     SocialAccount? @relation(fields: [socialAccountId], references: [id], onDelete: SetNull)
+  jobType           SyncJobType
+  status            SyncJobStatus  @default(PENDING)
+  provider          String?        // "meta", "youtube", etc.
+  startedAt         DateTime?
+  finishedAt        DateTime?
+  recordsProcessed  Int            @default(0)
+  errorMessage      String?        @db.Text
+  retryCount        Int            @default(0)
+  maxRetries        Int            @default(3)
+  nextRetryAt       DateTime?
+  metadata          Json?          // Additional context
+  createdAt         DateTime       @default(now())
+
+  @@index([workspaceId, status])
+  @@index([socialAccountId, status])
+  @@index([status, nextRetryAt])
+  @@index([createdAt])
+}
+
+// ============================================================
+// AI — CONVERSATIONS, MEMORY, RECOMMENDATIONS, USAGE
+// ============================================================
+
+model ChatSession {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspaceId String?
+  workspace   Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  brandId     String?
+  title       String?
+  model       String?  // "gpt-4o", "claude-sonnet-4-6", etc.
+  provider    String?  // "openai", "anthropic", "google", "openrouter"
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  messages    ChatMessage[]
+
+  @@index([userId])
+  @@index([workspaceId])
+  @@index([brandId])
+  @@index([createdAt(sort: Desc)])
+}
+
+model ChatMessage {
+  id          String   @id @default(cuid())
+  sessionId   String
+  session     ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  role        ChatRole
+  content     String   @db.Text
+  toolCalls   Json?     // Array of tool call objects from the provider
+  toolResults Json?     // Results of tool calls
+  modelUsed   String?
+  provider    String?
+  inputTokens Int?
+  outputTokens Int?
+  createdAt   DateTime @default(now())
+
+  @@index([sessionId])
+  @@index([sessionId, createdAt])
+}
+
+model AIMemory {
+  id                 String       @id @default(cuid())
+  brandId            String
+  brand              Brand        @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  memoryType         MemoryType
+  content            String       @db.Text
+  importance         Float        @default(0.5)  // 0.0 - 1.0
+  source             MemorySource
+  embeddingReference String?      // Vector store reference for semantic search
+  lastUsedAt         DateTime?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  @@index([brandId, memoryType])
+  @@index([brandId, importance])
+  @@index([lastUsedAt])
+}
+
+model AIRecommendation {
+  id              String               @id @default(cuid())
+  workspaceId     String
+  workspace       Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  brandId         String?
+  recommendationType RecommendationType
+  priority        Int                  @default(0)   // 0-10, 10 = highest
+  title           String
+  message         String               @db.Text
+  confidence      Float                @default(0.5)  // 0.0 - 1.0
+  status          RecommendationStatus @default(NEW)
+  metadata        Json?                // Supporting data, links, etc.
+  generatedAt     DateTime             @default(now())
+  expiresAt       DateTime?
+  appliedAt       DateTime?
+  dismissedAt     DateTime?
+  dismissedReason String?              @db.Text
+
+  @@index([workspaceId, status])
+  @@index([workspaceId, priority])
+  @@index([brandId])
+  @@index([expiresAt])
+  @@index([generatedAt])
+}
+
+model AIUsage {
+  id            String   @id @default(cuid())
+  workspaceId   String?
+  workspace     Workspace? @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+  userId        String?
+  user          User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
+  provider      String   // "openai", "anthropic", "google", "openrouter"
+  model         String   // Specific model identifier
+  feature       String   // Which feature triggered this (e.g., "content-studio", "social-manager")
+  inputTokens   Int      @default(0)
+  outputTokens  Int      @default(0)
+  latencyMs     Int      @default(0)
+  estimatedCost Float    @default(0)   // USD
+  createdAt     DateTime @default(now())
+
+  @@index([workspaceId, createdAt])
+  @@index([userId, createdAt])
+  @@index([provider, createdAt])
+  @@index([feature, createdAt])
+  @@index([createdAt])
+}
+
+model PromptTemplate {
+  id          String   @id @default(cuid())
+  name        String
+  category    String   // "content-generation", "analysis", "recommendation", "chat"
+  prompt      String   @db.Text
+  variables   String[] @default([])   // Variable names used in the prompt
+  provider    String?  // Preferred provider (null = any)
+  model       String?  // Preferred model (null = any)
+  version     Int      @default(1)
+  isActive    Boolean  @default(true)
+  description String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([category, isActive])
+  @@index([name, version])
+}
+
+// ============================================================
+// CONTENT IDEAS
+// ============================================================
+
+model ContentIdea {
+  id          String            @id @default(cuid())
+  workspaceId String?
+  workspace   Workspace?        @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+  brandId     String?
+  category    String?
+  platform    SocialPlatform?
+  title       String
+  description String?           @db.Text
+  hashtags    String[]          @default([])
+  status      ContentIdeaStatus @default(NEW)
+  generatedBy ContentIdeaSource @default(AI_GENERATED)
+  source      String?           // Specific source (trend name, competitor name, etc.)
+  confidence  Float?            @default(0.5)
+  approvedBy  String?           // userId
+  approvedAt  DateTime?
+  publishedAt DateTime?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  deletedAt   DateTime?
+
+  draft       Draft?            @relation(fields: [draftId], references: [id])
+  draftId     String?           @unique
+
+  @@index([workspaceId, status])
+  @@index([brandId, status])
+  @@index([platform, status])
+  @@index([createdAt])
+}
+
+// ============================================================
+// MEDIA LIBRARY & INTELLIGENCE
+// ============================================================
+
+model MediaAsset {
+  id          String    @id @default(cuid())
+  brandId     String
+  brand       Brand     @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  name        String
+  type        MediaType
+  url         String
+  thumbnailUrl String?
+  width       Int?
+  height      Int?
+  size        Int?      // bytes
+  tags        String[]  @default([])
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  analyses    MediaAnalysis[]
+
+  @@index([brandId])
+  @@index([tags])
+  @@index([type])
+  @@index([brandId, deletedAt])
+}
+
+model MediaAnalysis {
+  id              String   @id @default(cuid())
+  mediaAssetId    String
+  mediaAsset      MediaAsset @relation(fields: [mediaAssetId], references: [id], onDelete: Cascade)
+  brandId         String?
+  brand           Brand?   @relation(fields: [brandId], references: [id], onDelete: SetNull)
+  hookScore       Float?   // 0-100: How strong the opening hook is
+  subtitleDensity Float?   // 0-1: Ratio of video with subtitles/captions
+  speechSpeed     Float?   // Words per minute
+  emotion         String?  // Dominant emotion detected
+  sceneChanges    Int?     @default(0)
+  musicType       String?  // Detected music style/mood
+  ctaDetected     Boolean  @default(false)
+  thumbnailScore  Float?   // 0-100: Thumbnail effectiveness
+  qualityScore    Float?   // 0-100: Overall production quality
+  transcript      String?  @db.Text
+  keyMoments      Json?    // Timestamped highlights
+  suggestions     String[] @default([])   // AI improvement suggestions
+  analyzedAt      DateTime @default(now())
+  model           String?  // AI model used for analysis
+  provider        String?
+
+  @@index([mediaAssetId])
+  @@index([brandId])
+  @@index([hookScore])
+  @@index([qualityScore])
+}
+
+// ============================================================
+// COMPETITOR TRACKING
+// ============================================================
+
+model Competitor {
+  id              String   @id @default(cuid())
+  workspaceId     String
+  workspace       Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  brandId         String?
+  brand           Brand?   @relation(fields: [brandId], references: [id], onDelete: SetNull)
+  socialAccountId String?
+  socialAccount   SocialAccount? @relation(fields: [socialAccountId], references: [id], onDelete: SetNull)
+  platform        SocialPlatform
+  username        String
+  displayName     String
+  avatarUrl       String?
+  description     String?  @db.Text
+  isTracked       Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+
+  snapshots       CompetitorSnapshot[]
+
+  @@unique([workspaceId, platform, username])
+  @@index([workspaceId])
+  @@index([workspaceId, isTracked])
+  @@index([platform])
+}
+
+model CompetitorSnapshot {
+  id                String    @id @default(cuid())
+  competitorId      String
+  competitor        Competitor @relation(fields: [competitorId], references: [id], onDelete: Cascade)
+  followers         Int       @default(0)
+  followerChange    Int       @default(0)
+  uploads           Int       @default(0)
+  engagement        Int       @default(0)
+  engagementRate    Float     @default(0)
+  postingFrequency  Float     @default(0)   // posts per week
+  avgViews          Int       @default(0)
+  avgLikes          Int       @default(0)
+  avgComments       Int       @default(0)
+  topTopics         String[]  @default([])
+  snapshotDate      DateTime  @db.Date
+  createdAt         DateTime  @default(now())
+
+  @@unique([competitorId, snapshotDate])
+  @@index([competitorId, snapshotDate])
+  @@index([snapshotDate])
+}
+
+// ============================================================
+// TREND CENTER
+// ============================================================
+
+model Trend {
+  id            String         @id @default(cuid())
+  workspaceId   String?
+  workspace     Workspace?     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  title         String
+  description   String?        @db.Text
+  category      String?
+  platform      SocialPlatform?
+  region        String?        // Geographic region
+  viralScore    Float?         // 0-100 virality estimate
+  peakDate      DateTime?
+  isActive      Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  keywords      TrendKeyword[]
+  sources       TrendSource[]
+
+  @@index([workspaceId])
+  @@index([platform])
+  @@index([viralScore])
+  @@index([isActive, createdAt])
+}
+
+model TrendKeyword {
+  id          String   @id @default(cuid())
+  trendId     String
+  trend       Trend    @relation(fields: [trendId], references: [id], onDelete: Cascade)
+  keyword     String
+  volume      Int?     // Search volume
+  growth      Float?   // Growth rate percentage
+  difficulty  Float?   // 0-100 competition difficulty
+  createdAt   DateTime @default(now())
+
+  @@index([trendId])
+  @@index([keyword])
+  @@index([volume])
+}
+
+model TrendSource {
+  id          String         @id @default(cuid())
+  trendId     String
+  trend       Trend          @relation(fields: [trendId], references: [id], onDelete: Cascade)
+  sourceType  TrendSourceType
+  url         String?
+  rawData     Json?          // Original data from the source
+  fetchedAt   DateTime       @default(now())
+
+  @@index([trendId])
+  @@index([sourceType])
+}
+
+// ============================================================
+// SOCIAL COMMENTS (INBOX)
+// ============================================================
+
+model SocialComment {
+  id                 String          @id @default(cuid())
+  socialAccountId    String
+  socialAccount      SocialAccount   @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
+  platformCommentId  String          // External platform comment ID
+  authorName         String
+  authorPlatformId   String
+  authorAvatarUrl    String?
+  content            String          @db.Text
+  parentCommentId    String?         // For nested replies
+  postId             String?         // Which post this comment is on
+  postUrl            String?
+  sentiment          CommentSentiment @default(NEUTRAL)
+  isReplied          Boolean         @default(false)
+  repliedAt          DateTime?
+  createdAt          DateTime
+  scrapedAt          DateTime        @default(now())
+
+  @@index([socialAccountId])
+  @@index([isReplied])
+  @@index([sentiment])
+  @@index([socialAccountId, isReplied, createdAt])
+  @@index([createdAt(sort: Desc)])
+}
+
+// ============================================================
+// GOALS
+// ============================================================
+
+model Goal {
+  id          String     @id @default(cuid())
+  workspaceId String
+  workspace   Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  brandId     String?
+  brand       Brand?     @relation(fields: [brandId], references: [id], onDelete: SetNull)
+  userId      String?
+  user        User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
+  type        GoalType
+  target      Int
+  current     Int        @default(0)
+  deadline    DateTime?
+  status      GoalStatus @default(ACTIVE)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([workspaceId])
+  @@index([workspaceId, status])
+  @@index([brandId])
+}
+
+// ============================================================
+// NOTIFICATIONS
+// ============================================================
+
+model Notification {
+  id          String             @id @default(cuid())
+  userId      String
+  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type        NotificationType
+  title       String
+  message     String             @db.Text
+  link        String?
+  metadata    Json?
+  isRead      Boolean            @default(false)
+  createdAt   DateTime           @default(now())
+
+  @@index([userId, isRead])
+  @@index([userId, createdAt(sort: Desc)])
+}
+
+// ============================================================
+// REPORTS
+// ============================================================
+
+model Report {
+  id                String       @id @default(cuid())
+  workspaceId       String
+  workspace         Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  brandId           String?
+  brand             Brand?       @relation(fields: [brandId], references: [id], onDelete: SetNull)
+  reportType        ReportType
+  format            ReportFormat @default(PDF)
+  title             String
+  description       String?      @db.Text
+  fileUrl           String?
+  status            ReportStatus @default(PENDING)
+  generatedBy       String?      // userId or "system"
+  scheduledDelivery DateTime?
+  deliveredAt       DateTime?
+  dateRangeStart    DateTime?    @db.Date
+  dateRangeEnd      DateTime?    @db.Date
+  metrics           String[]     @default([])   // Included metrics
+  platforms         SocialPlatform[] @default([])
+  errorMessage      String?      @db.Text
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  @@index([workspaceId, status])
+  @@index([workspaceId, reportType])
+  @@index([brandId])
+  @@index([createdAt])
+}
+
+// ============================================================
+// STORAGE
+// ============================================================
+
+model StorageFile {
+  id          String   @id @default(cuid())
+  name        String
+  provider    String   @default("supabase")  // "supabase", "s3", "local"
+  bucket      String
+  path        String
+  url         String
+  mimeType    String
+  checksum    String?  // SHA256 for integrity verification
+  size        Int      @default(0)
+  metadata    Json?    // Custom metadata (dimensions, duration, etc.)
+  uploadedBy  String?  // userId
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  @@index([provider, bucket])
+  @@index([uploadedBy])
+  @@index([mimeType])
+  @@index([createdAt])
+}
+
+// ============================================================
+// USER PREFERENCES
+// ============================================================
+
+model UserPreference {
+  id                 String   @id @default(cuid())
+  userId             String   @unique
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  theme              String   @default("system")   // "light", "dark", "system"
+  language           String   @default("en")
+  timezone           String   @default("UTC")
+  notificationSettings Json   @default("{}")       // Per-channel notification prefs
+  defaultWorkspaceId String?
+  dashboardLayout    Json?     // Legacy: inline layout config
+  compactMode        Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([userId])
+}
+
+// ============================================================
+// SAVED VIEWS
+// ============================================================
+
+model SavedView {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspaceId String?
+  workspace   Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  feature     String   // "analytics", "calendar", "content-library", etc.
+  name        String
+  description String?
+  filters     Json     // Filter configuration
+  sorting     Json?    // Sort configuration
+  columns     String[] @default([])   // Selected columns
+  layout      Json?    // Page layout config
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId, feature])
+  @@index([workspaceId, feature])
+}
+
+// ============================================================
+// DASHBOARD LAYOUT
+// ============================================================
+
+model DashboardLayout {
+  id          String   @id @default(cuid())
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspaceId String?
+  workspace   Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  brandId     String?
+  brand       Brand?   @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  name        String   @default("Default")
+  widgets     Json     // [{id, type, title, position, size, config, visibility}]
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+  @@index([workspaceId])
+  @@index([brandId])
+}
+
+// ============================================================
+// INTEGRATIONS
+// ============================================================
+
+model Integration {
+  id            String           @id @default(cuid())
+  workspaceId   String
+  workspace     Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  provider      String           // "slack", "discord", "google-drive", "zapier", "make", "n8n"
+  name          String
+  status        IntegrationStatus @default(PENDING)
+  config        Json             // Provider-specific configuration
+  credentials   String?          @db.Text  // Encrypted credentials
+  lastSyncAt    DateTime?
+  errorMessage  String?          @db.Text
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  @@unique([workspaceId, provider])
+  @@index([workspaceId])
+  @@index([status])
+}
+
+// ============================================================
+// WEBHOOKS
+// ============================================================
+
+model Webhook {
+  id          String         @id @default(cuid())
+  workspaceId String
+  workspace   Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  url         String
+  secret      String?        // HMAC signing secret
+  events      WebhookEvent[]
+  isActive    Boolean        @default(true)
+  description String?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  deliveries  WebhookDelivery[]
+
+  @@index([workspaceId])
+  @@index([workspaceId, isActive])
+}
+
+model WebhookDelivery {
+  id              String               @id @default(cuid())
+  webhookId       String
+  webhook         Webhook              @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+  event           WebhookEvent
+  payload         Json
+  status          WebhookDeliveryStatus @default(PENDING)
+  responseStatus  Int?                 // HTTP status code
+  responseBody    String?              @db.Text
+  retryCount      Int                  @default(0)
+  maxRetries      Int                  @default(3)
+  nextRetryAt     DateTime?
+  errorMessage    String?              @db.Text
+  createdAt       DateTime             @default(now())
+  deliveredAt     DateTime?
+
+  @@index([webhookId])
+  @@index([webhookId, status])
+  @@index([status, nextRetryAt])
+  @@index([createdAt])
+}
+
+// ============================================================
+// AUDIT LOGS
+// ============================================================
+
+model AuditLog {
+  id            String      @id @default(cuid())
+  workspaceId   String?
+  workspace     Workspace?  @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+  userId        String?
+  user          User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action        AuditAction
+  entity        String      // "Brand", "ScheduledPost", "User", etc.
+  entityId      String
+  previousValue Json?
+  newValue      Json?
+  ipAddress     String?
+  userAgent     String?
+  createdAt     DateTime    @default(now())
+
+  @@index([workspaceId, createdAt])
+  @@index([userId, createdAt])
+  @@index([entity, entityId])
+  @@index([action, createdAt])
+  @@index([createdAt])
+}
+
+// ============================================================
+// FEATURE FLAGS
+// ============================================================
+
+model FeatureFlag {
+  id                String   @id @default(cuid())
+  name              String   @unique
+  description       String?
+  isEnabled         Boolean  @default(false)
+  targetWorkspaces  String[] @default([])   // Workspace IDs that have this enabled
+  rolloutPercentage Int      @default(0)    // 0-100
+  environments      String[] @default(["production"])
+  createdBy         String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([name])
+  @@index([isEnabled])
+}
+
+// ============================================================
+// WORKSPACE SETTINGS (key-value store)
+// ============================================================
+
+model WorkspaceSetting {
+  id          String   @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  key         String
+  value       String   @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([workspaceId, key])
+  @@index([workspaceId])
+}
+
+// ============================================================
+// API KEYS
+// ============================================================
+
+model ApiKey {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  keyHash     String   @unique
+  permissions String[] @default([])
+  lastUsedAt  DateTime?
+  createdAt   DateTime @default(now())
+  expiresAt   DateTime?
+  revokedAt   DateTime?
+
+  @@index([userId])
+  @@index([keyHash])
+  @@index([revokedAt])
+}
