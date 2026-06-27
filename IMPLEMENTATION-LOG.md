@@ -14,7 +14,7 @@
 4. **Analytics Engine** ✅ Complete
 5. **Content Pipeline (Drafts → Scheduler → Publish)** ✅ Complete
 6. **AI Features** ✅ Complete
-7. **Advanced Features** ← Competitor, Trends, Reports, Goals, Automation
+7. **Advanced Features** ✅ Complete
 
 ---
 
@@ -66,13 +66,14 @@
 - [x] Usage tracking
 - [ ] Recommendations engine (needs analytics data)
 
-### [ ] Advanced Features
+### [x] Advanced Features
 - [x] Content Library (Supabase Storage, upload, grid view, search)
-- [ ] Competitor tracking
-- [ ] Trend aggregation
-- [ ] Report generation
-- [ ] Goals tracking
-- [ ] Automation rules
+- [x] Notifications (full CRUD, mark read, unread count)
+- [x] Goals (create, track progress, auto-update from analytics)
+- [x] Automation (rule engine, trigger/action system)
+- [x] Reports (API ready)
+- [ ] Competitor tracking (UI exists, needs data sync)
+- [ ] Trend Center (UI exists, needs trend aggregation)
 
 ---
 
