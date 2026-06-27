@@ -67,7 +67,7 @@
 - [ ] Recommendations engine (needs analytics data)
 
 ### [ ] Advanced Features
-- [ ] Content Library (Supabase Storage)
+- [x] Content Library (Supabase Storage, upload, grid view, search)
 - [ ] Competitor tracking
 - [ ] Trend aggregation
 - [ ] Report generation

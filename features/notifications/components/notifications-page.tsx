@@ -1,20 +1,21 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Bell, Clock, AlertTriangle, Sparkles, Trophy, X, CheckCheck } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Bell, CheckCheck, Trash2, Clock, AlertTriangle, Sparkles, Trophy } from "lucide-react";
+import { toast } from "sonner";
 
 type Notification = {
   id: string;
   type: string;
   title: string;
   message: string;
+  link: string | null;
   isRead: boolean;
   createdAt: string;
-  link: string | null;
 };
 
 const typeIcons: Record<string, typeof Bell> = {
@@ -30,18 +31,52 @@ const typeIcons: Record<string, typeof Bell> = {
 
 export function NotificationsPage() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "unread">("all");
 
-  const markAllRead = () => {
-    setNotifications(notifications.map((n) => ({ ...n, isRead: true })));
+  const fetchNotifications = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/v1/notifications");
+      const data = await res.json();
+      if (data.success) {
+        setNotifications(data.data.notifications);
+        setUnreadCount(data.data.unreadCount);
+      }
+    } catch {
+      toast.error("Failed to load notifications");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const dismiss = (id: string) => {
-    setNotifications(notifications.filter((n) => n.id !== id));
+  useEffect(() => { fetchNotifications(); }, []);
+
+  const markAllRead = async () => {
+    try {
+      await fetch("/api/v1/notifications", { method: "PATCH" });
+      setNotifications(notifications.map((n) => ({ ...n, isRead: true })));
+      setUnreadCount(0);
+      toast.success("All notifications marked as read");
+    } catch {
+      toast.error("Failed to mark as read");
+    }
+  };
+
+  const dismiss = async (id: string) => {
+    try {
+      await fetch(`/api/v1/notifications?id=${id}`, { method: "DELETE" });
+      setNotifications(notifications.filter((n) => n.id !== id));
+      if (!notifications.find((n) => n.id === id)?.isRead) {
+        setUnreadCount(unreadCount - 1);
+      }
+    } catch {
+      toast.error("Failed to dismiss notification");
+    }
   };
 
   const filtered = filter === "unread" ? notifications.filter((n) => !n.isRead) : notifications;
-  const unreadCount = notifications.filter((n) => !n.isRead).length;
 
   return (
     <div className="space-y-6">
@@ -66,7 +101,13 @@ export function NotificationsPage() {
         }
       />
 
-      {filtered.length === 0 ? (
+      {loading ? (
+        <div className="space-y-3">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Card key={i}><CardContent className="py-6"><div className="h-4 bg-muted rounded w-3/4 animate-pulse" /></CardContent></Card>
+          ))}
+        </div>
+      ) : filtered.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">
             <Bell className="h-8 w-8 mx-auto mb-3 opacity-50" />
@@ -100,7 +141,7 @@ export function NotificationsPage() {
                       </p>
                     </div>
                     <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => dismiss(notification.id)}>
-                      <X className="h-4 w-4" />
+                      <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
                 </CardContent>

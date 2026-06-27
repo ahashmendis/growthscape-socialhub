@@ -338,6 +338,7 @@ model Workspace {
   chatSessions ChatSession[]
   dashboardLayouts DashboardLayout[]
   savedViews  SavedView[]
+  automationRules AutomationRule[]
 
   @@index([ownerId])
   @@index([slug])
@@ -1348,6 +1349,41 @@ model WorkspaceSetting {
 
   @@unique([workspaceId, key])
   @@index([workspaceId])
+}
+
+// ============================================================
+// AUTOMATION
+// ============================================================
+
+model AutomationRule {
+  id          String   @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name        String
+  trigger     String   // Event that triggers the rule
+  action      String   // Action to perform
+  config      Json     // Rule configuration
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  executions  AutomationExecution[]
+
+  @@index([workspaceId])
+  @@index([isActive])
+}
+
+model AutomationExecution {
+  id          String   @id @default(cuid())
+  ruleId      String
+  rule        AutomationRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  status      String   // success, failed, pending
+  result      Json?    // Execution result
+  errorMessage String? @db.Text
+  executedAt  DateTime @default(now())
+
+  @@index([ruleId])
+  @@index([executedAt])
 }
 
 // ============================================================
