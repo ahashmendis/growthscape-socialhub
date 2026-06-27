@@ -9,20 +9,20 @@ export async function POST(request: NextRequest) {
   try {
     const user = await requireUser();
     const body = await request.json();
-    const { prompt, contentType, brandId, provider, context } = body;
+    const { brandId, topic, platform, count, provider } = body;
 
-    if (!prompt || !contentType) {
-      return errorResponse("BAD_REQUEST" as ErrorCode, "prompt and contentType are required", 400);
+    if (!brandId && !topic) {
+      return errorResponse("BAD_REQUEST" as ErrorCode, "brandId or topic is required", 400);
     }
 
-    const result = await aiContentService.generateContent(user.id, null, {
-      prompt, contentType, brandId, provider, context,
+    const ideas = await aiContentService.generateIdeas(user.id, null, {
+      brandId, topic, platform, count, provider,
     });
-    return successResponse(result);
+    return successResponse(ideas);
   } catch (error) {
     if (isAppError(error)) {
       return errorResponse(error.code as ErrorCode, error.message, 400);
     }
-    return errorResponse("INTERNAL_ERROR", "Content generation failed", 500);
+    return errorResponse("INTERNAL_ERROR", "Idea generation failed", 500);
   }
 }

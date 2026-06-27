@@ -2,20 +2,29 @@
 
 import { useState, useEffect } from "react";
 import { PageHeader } from "@/components/layout/page-header";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Sparkles, TrendingUp, AlertTriangle, Lightbulb, Check, X, RefreshCw, Loader2 } from "lucide-react";
+import { Sparkles, TrendingUp, AlertTriangle, Lightbulb, Check, X, RefreshCw } from "lucide-react";
+import { toast } from "sonner";
 
 type Recommendation = {
   id: string;
-  type: string;
+  recommendationType: string;
   priority: number;
   title: string;
   message: string;
   confidence: number;
   status: string;
   generatedAt: string;
+};
+
+const typeIcons: Record<string, typeof Lightbulb> = {
+  POSTING_TIME: Lightbulb,
+  CONTENT_TYPE: TrendingUp,
+  HASHTAG: Sparkles,
+  GROWTH_OPPORTUNITY: TrendingUp,
+  ENGAGEMENT_IMPROVEMENT: AlertTriangle,
 };
 
 export function AiSocialManagerPage() {
@@ -37,16 +46,18 @@ export function AiSocialManagerPage() {
 
   useEffect(() => { fetchRecommendations(); }, []);
 
-  const handleDismiss = async (id: string) => {
-    setRecommendations(recommendations.filter((r) => r.id !== id));
-  };
-
-  const typeIcons: Record<string, typeof Lightbulb> = {
-    POSTING_TIME: Lightbulb,
-    CONTENT_TYPE: TrendingUp,
-    HASHTAG: Sparkles,
-    GROWTH_OPPORTUNITY: TrendingUp,
-    ENGAGEMENT_IMPROVEMENT: AlertTriangle,
+  const handleDismiss = async (id: string, status: string) => {
+    try {
+      await fetch(`/api/v1/ai/recommendations/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      setRecommendations(recommendations.filter((r) => r.id !== id));
+      toast.success(status === "ACCEPTED" ? "Recommendation applied" : "Dismissed");
+    } catch {
+      toast.error("Failed to update recommendation");
+    }
   };
 
   const priorityColors: Record<number, string> = {
@@ -79,7 +90,7 @@ export function AiSocialManagerPage() {
             <div className="flex-1">
               <h3 className="font-semibold text-primary mb-1">AI Analysis Summary</h3>
               <p className="text-sm text-muted-foreground">
-                Connect your social accounts to receive personalized AI recommendations about optimal posting times,
+                Connect your social accounts and sync data to receive personalized AI recommendations about optimal posting times,
                 content strategy, audience insights, and growth opportunities.
               </p>
             </div>
@@ -88,7 +99,7 @@ export function AiSocialManagerPage() {
       </Card>
 
       {/* Recommendations */}
-      <h3 className="text-lg font-semibold">Recommendations</h3>
+      <h3 className="text-lg font-semibold">Recommendations ({recommendations.length})</h3>
 
       {loading ? (
         <div className="space-y-3">
@@ -106,7 +117,7 @@ export function AiSocialManagerPage() {
       ) : (
         <div className="space-y-3">
           {recommendations.map((rec) => {
-            const Icon = typeIcons[rec.type] || Lightbulb;
+            const Icon = typeIcons[rec.recommendationType] || Lightbulb;
             return (
               <Card key={rec.id} className={`border-l-4 ${priorityColors[rec.priority] || "border-l-muted"}`}>
                 <CardContent className="py-4">
@@ -129,10 +140,10 @@ export function AiSocialManagerPage() {
                       </div>
                     </div>
                     <div className="flex gap-1 shrink-0">
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-green-600">
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-green-600" onClick={() => handleDismiss(rec.id, "ACCEPTED")}>
                         <Check className="h-4 w-4" />
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDismiss(rec.id)}>
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDismiss(rec.id, "DISMISSED")}>
                         <X className="h-4 w-4" />
                       </Button>
                     </div>

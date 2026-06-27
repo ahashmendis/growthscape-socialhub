@@ -12,7 +12,7 @@
 2. **Social Connections (OAuth)** ← Needed for analytics, publishing
 3. **Brand Management** ← Tied to workspace + social accounts
 4. **Analytics Engine** ✅ Complete
-5. **Content Pipeline (Drafts → Scheduler → Publish)** ← Needs brands
+5. **Content Pipeline (Drafts → Scheduler → Publish)** ✅ Complete
 6. **AI Features** ← Needs brand persona + content data
 7. **Advanced Features** ← Competitor, Trends, Reports, Goals, Automation
 
@@ -49,11 +49,14 @@
 - [x] Daily sync jobs (Inngest)
 - [x] Data aggregation (dashboard overview, cross-platform)
 
-### [ ] Content Pipeline
-- [ ] Draft → Schedule → Publish flow
-- [ ] Meta posting API
-- [ ] YouTube upload API
-- [ ] Publish queue processing
+### [x] Content Pipeline
+- [x] Draft → Schedule → Publish flow
+- [x] Facebook Page publishing (Graph API)
+- [x] Instagram publishing (Graph API)
+- [x] YouTube metadata API
+- [x] Inngest publish queue (cron every 5 min)
+- [x] Retry logic with failure tracking
+- [ ] TikTok, LinkedIn, Pinterest (APIs pending)
 
 ### [ ] AI Features
 - [ ] AI provider key configuration
