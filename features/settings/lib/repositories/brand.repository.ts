@@ -8,6 +8,7 @@ export const brandRepository = {
       orderBy: { createdAt: "desc" },
       include: {
         persona: true,
+        socialAccounts: { where: { isActive: true } },
         _count: {
           select: { socialAccounts: { where: { isActive: true } } },
         },

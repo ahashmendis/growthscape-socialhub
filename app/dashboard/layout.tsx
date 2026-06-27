@@ -4,16 +4,15 @@ import { prisma } from "@/lib/db/client";
 import { AppShell } from "@/components/layout/app-shell";
 import type { ReactNode } from "react";
 
-async function ensureUserExists(supabaseUser: { id: string; email: string | null; user_metadata?: { name?: string } }) {
+async function ensureUserExists(supabaseUser: { id: string; email?: string | null; user_metadata?: Record<string, unknown> }) {
   const existing = await prisma.user.findUnique({ where: { id: supabaseUser.id } });
   if (existing) return existing;
 
-  // Create user record from Supabase auth data
   return prisma.user.create({
     data: {
       id: supabaseUser.id,
       email: supabaseUser.email || "",
-      name: supabaseUser.user_metadata?.name || null,
+      name: (supabaseUser.user_metadata?.name as string) || null,
     },
   });
 }

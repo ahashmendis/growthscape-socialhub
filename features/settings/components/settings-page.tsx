@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { Plus, Trash2, Edit2, Building2, Users } from "lucide-react";
+import { Plus, Trash2, Building2, Users, X as XIcon } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { PlatformIcon } from "@/components/shared/platform-icon";
 import { EmptyState } from "@/components/shared/empty-state";
 import { useWorkspace } from "@/providers/workspace-provider";
+import { toast } from "sonner";
 
 type Brand = {
   id: string;
@@ -19,6 +20,7 @@ type Brand = {
   logoUrl: string | null;
   color: string | null;
   _count: { socialAccounts: number };
+  socialAccounts?: { id: string; platform: string; platformHandle: string | null; accountName: string; followers: number; isActive: boolean }[];
 };
 
 type WorkspaceFromAPI = {
@@ -29,6 +31,17 @@ type WorkspaceFromAPI = {
   plan: string;
   _count?: { brands: number; members: number };
 };
+
+const PLATFORMS = [
+  { key: "FACEBOOK", label: "Facebook", ready: true },
+  { key: "INSTAGRAM", label: "Instagram", ready: true },
+  { key: "YOUTUBE", label: "YouTube", ready: true },
+  { key: "TIKTOK", label: "TikTok", ready: false },
+  { key: "LINKEDIN", label: "LinkedIn", ready: false },
+  { key: "PINTEREST", label: "Pinterest", ready: false },
+  { key: "X", label: "X", ready: false },
+  { key: "THREADS", label: "Threads", ready: false },
+];
 
 function SettingsContent() {
   const searchParams = useSearchParams();
@@ -112,6 +125,36 @@ function SettingsContent() {
         setNewWorkspaceSlug("");
         setShowWorkspaceForm(false);
       }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleConnectSocial = async (platform: string, brandId: string) => {
+    if (!currentWorkspace) return;
+    try {
+      const res = await fetch("/api/v1/social/connect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ platform, brandId, workspaceId: currentWorkspace.id }),
+      });
+      const data = await res.json();
+      if (data.success && data.data.authUrl) {
+        window.location.href = data.data.authUrl;
+      } else {
+        toast.error(data.error?.message || "Failed to connect");
+      }
+    } catch {
+      toast.error("Failed to initiate connection");
+    }
+  };
+
+  const handleDisconnectSocial = async (accountId: string) => {
+    setLoading(true);
+    try {
+      await fetch(`/api/v1/social/${accountId}`, { method: "DELETE" });
+      if (currentWorkspace) fetchBrands(currentWorkspace.id);
+      toast.success("Account disconnected");
     } finally {
       setLoading(false);
     }
@@ -235,25 +278,64 @@ function SettingsContent() {
           {brands.length === 0 && !showCreateForm ? (
             <EmptyState icon={Plus} title="No brands yet" description="Create your first brand to connect social accounts" actionLabel="Add Brand" onAction={() => setShowCreateForm(true)} />
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-4">
               {brands.map((brand) => (
                 <Card key={brand.id}>
-                  <CardContent className="flex items-center justify-between py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-lg flex items-center justify-center text-white font-bold text-sm" style={{ backgroundColor: brand.color || "#6C5CE7" }}>
-                        {brand.name[0].toUpperCase()}
+                  <CardContent className="py-4">
+                    {/* Brand Header */}
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-lg flex items-center justify-center text-white font-bold text-sm" style={{ backgroundColor: brand.color || "#6C5CE7" }}>
+                          {brand.name[0].toUpperCase()}
+                        </div>
+                        <div>
+                          <p className="font-medium">{brand.name}</p>
+                          <p className="text-xs text-muted-foreground">/{brand.slug}</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-medium">{brand.name}</p>
-                        <p className="text-xs text-muted-foreground">/{brand.slug}</p>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="secondary">{brand._count?.socialAccounts || 0} connected</Badge>
+                        <Button variant="ghost" size="icon" onClick={() => handleDeleteBrand(brand.id)} className="text-destructive hover:text-destructive">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <Badge variant="secondary">{brand._count?.socialAccounts || 0} accounts</Badge>
-                      <Button variant="ghost" size="icon"><Edit2 className="h-4 w-4" /></Button>
-                      <Button variant="ghost" size="icon" onClick={() => handleDeleteBrand(brand.id)} className="text-destructive hover:text-destructive">
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+
+                    {/* Connected Accounts */}
+                    {brand.socialAccounts && brand.socialAccounts.length > 0 && (
+                      <div className="space-y-2 mb-4">
+                        {brand.socialAccounts.map((account) => (
+                          <div key={account.id} className="flex items-center justify-between bg-muted/50 rounded-lg px-3 py-2">
+                            <div className="flex items-center gap-2">
+                              <PlatformIcon platform={account.platform.toLowerCase() as any} size="sm" />
+                              <span className="text-sm font-medium">{account.accountName}</span>
+                              {account.platformHandle && <span className="text-xs text-muted-foreground">@{account.platformHandle}</span>}
+                            </div>
+                            <Button variant="ghost" size="sm" onClick={() => handleDisconnectSocial(account.id)} className="text-destructive h-7">
+                              <XIcon className="h-3 w-3 mr-1" />
+                              Disconnect
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Connect Platforms */}
+                    <div className="flex flex-wrap gap-2">
+                      {PLATFORMS.filter((p) => !brand.socialAccounts?.some((a) => a.platform === p.key)).map((platform) => (
+                        <Button
+                          key={platform.key}
+                          variant="outline"
+                          size="sm"
+                          disabled={!platform.ready || loading}
+                          onClick={() => handleConnectSocial(platform.key, brand.id)}
+                          className="gap-2"
+                        >
+                          <PlatformIcon platform={platform.key.toLowerCase() as any} size="sm" />
+                          {platform.label}
+                          {!platform.ready && <Badge variant="outline" className="text-[10px] ml-1">Soon</Badge>}
+                        </Button>
+                      ))}
                     </div>
                   </CardContent>
                 </Card>

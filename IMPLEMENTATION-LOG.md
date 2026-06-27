@@ -20,12 +20,13 @@
 
 ## Implementation Queue
 
-### [ ] Workspace Management
-- [ ] Create workspace flow (after signup)
-- [ ] Workspace switcher in topbar
-- [ ] Workspace settings page
-- [ ] Member invitation/management
-- [ ] Workspace-level authorization
+### [x] Workspace Management
+- [x] Create workspace flow (after signup / via settings)
+- [x] Workspace switcher in topbar
+- [x] Workspace settings page (workspace + brands tabs)
+- [ ] Member invitation/management (service ready, UI pending)
+- [x] Auto-create User record on first login (Supabase auth sync)
+- [x] Workspace-level API (CRUD + member management)
 
 ### [ ] Social Connections (OAuth)
 - [ ] Facebook OAuth flow

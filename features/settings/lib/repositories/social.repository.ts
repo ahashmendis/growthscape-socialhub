@@ -2,7 +2,7 @@ import { prisma } from "@/lib/db/client";
 import type { SocialAccount } from "@prisma/client";
 
 export const socialAccountRepository = {
-  async findByBrandId(brandId: string): Promise<SocialAccount[]> {
+  async findByBrandId(brandId: string) {
     return prisma.socialAccount.findMany({
       where: { brandId, deletedAt: null },
       include: { credential: true },
@@ -10,7 +10,7 @@ export const socialAccountRepository = {
     });
   },
 
-  async findById(id: string): Promise<SocialAccount | null> {
+  async findById(id: string) {
     return prisma.socialAccount.findUnique({
       where: { id, deletedAt: null },
       include: { credential: true, brand: true },
