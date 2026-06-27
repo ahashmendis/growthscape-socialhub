@@ -13,7 +13,7 @@
 3. **Brand Management** ← Tied to workspace + social accounts
 4. **Analytics Engine** ✅ Complete
 5. **Content Pipeline (Drafts → Scheduler → Publish)** ✅ Complete
-6. **AI Features** ← Needs brand persona + content data
+6. **AI Features** ✅ Complete
 7. **Advanced Features** ← Competitor, Trends, Reports, Goals, Automation
 
 ---
@@ -58,11 +58,13 @@
 - [x] Retry logic with failure tracking
 - [ ] TikTok, LinkedIn, Pinterest (APIs pending)
 
-### [ ] AI Features
-- [ ] AI provider key configuration
-- [ ] Chat interface with persistence
-- [ ] Content generation with brand context
-- [ ] Recommendations engine
+### [x] AI Features
+- [x] AI Chat with persistence
+- [x] Content generation with brand context (8 types)
+- [x] Ideas generation
+- [x] Multi-provider (Gemini, OpenAI, Claude, OpenRouter)
+- [x] Usage tracking
+- [ ] Recommendations engine (needs analytics data)
 
 ### [ ] Advanced Features
 - [ ] Content Library (Supabase Storage)
