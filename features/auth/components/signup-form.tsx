@@ -29,17 +29,41 @@ export function SignupForm() {
   const onSubmit = async (data: SignupInput) => {
     setIsLoading(true);
     try {
-      const { error } = await supabase.auth.signUp({
+      const { error: signUpError, data: signUpData } = await supabase.auth.signUp({
         email: data.email,
         password: data.password,
         options: {
           data: { name: data.name },
         },
       });
-      if (error) throw error;
+      if (signUpError) throw signUpError;
 
-      toast.success("Account created! Check your email to verify.");
-      router.push("/login");
+      // If session exists (email confirmation disabled), create workspace and redirect
+      if (signUpData.session) {
+        const slug = data.name.toLowerCase().replace(/\s+/g, "-") + "-" + Date.now().toString(36);
+        const createRes = await fetch("/api/v1/workspaces", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: `${data.name}'s Workspace`,
+            slug,
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+          }),
+        });
+
+        const createData = await createRes.json();
+        if (!createData.success) {
+          toast.warning("Account created but workspace setup failed.");
+        }
+
+        toast.success("Account created! Welcome to Growthscape.");
+        router.push("/dashboard");
+        router.refresh();
+      } else {
+        // Email confirmation required
+        toast.success("Account created! Check your email to verify, then sign in.");
+        router.push("/login");
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Signup failed";
       toast.error(message);

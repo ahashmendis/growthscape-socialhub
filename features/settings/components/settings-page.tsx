@@ -1,15 +1,16 @@
 "use client";
 
-import { useState } from "react";
-import { Plus, Trash2, Edit2, ExternalLink } from "lucide-react";
+import { useState, useEffect, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
+import { Plus, Trash2, Edit2, Building2, Users } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PlatformIcon } from "@/components/shared/platform-icon";
 import { EmptyState } from "@/components/shared/empty-state";
-import { ErrorState } from "@/components/shared/error-state";
+import { useWorkspace } from "@/providers/workspace-provider";
 
 type Brand = {
   id: string;
@@ -18,48 +19,65 @@ type Brand = {
   logoUrl: string | null;
   color: string | null;
   _count: { socialAccounts: number };
-  persona: unknown;
 };
 
-type SocialAccount = {
+type WorkspaceFromAPI = {
   id: string;
-  platform: string;
-  platformHandle: string | null;
-  accountName: string;
-  followers: number;
-  isActive: boolean;
+  name: string;
+  slug: string;
+  timezone: string;
+  plan: string;
+  _count?: { brands: number; members: number };
 };
 
-export function SettingsPage() {
-  const [activeTab, setActiveTab] = useState<"workspace" | "brands">("brands");
+function SettingsContent() {
+  const searchParams = useSearchParams();
+  const defaultTab = searchParams.get("tab") || "brands";
+  const [activeTab, setActiveTab] = useState(defaultTab);
+  const { workspaces, currentWorkspace, setCurrentWorkspaceId, refresh } = useWorkspace();
   const [brands, setBrands] = useState<Brand[]>([]);
-  const [socialAccounts, setSocialAccounts] = useState<SocialAccount[]>([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const [newBrandName, setNewBrandName] = useState("");
-  const [newBrandSlug, setNewBrandSlug] = useState("");
+  const [showWorkspaceForm, setShowWorkspaceForm] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newSlug, setNewSlug] = useState("");
+  const [newWorkspaceName, setNewWorkspaceName] = useState("");
+  const [newWorkspaceSlug, setNewWorkspaceSlug] = useState("");
+
+  useEffect(() => {
+    if (currentWorkspace) {
+      fetchBrands(currentWorkspace.id);
+    }
+  }, [currentWorkspace]);
+
+  const fetchBrands = async (workspaceId: string) => {
+    try {
+      const res = await fetch(`/api/v1/brands`, {
+        headers: { "x-workspace-id": workspaceId },
+      });
+      const data = await res.json();
+      if (data.success) setBrands(data.data);
+    } catch {
+      // Silently fail
+    }
+  };
 
   const handleCreateBrand = async () => {
-    if (!newBrandName.trim()) return;
+    if (!newName.trim() || !currentWorkspace) return;
     setLoading(true);
     try {
-      const response = await fetch("/api/v1/brands", {
+      const res = await fetch("/api/v1/brands", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: newBrandName, slug: newBrandSlug || newBrandName.toLowerCase().replace(/\s+/g, "-") }),
+        headers: { "Content-Type": "application/json", "x-workspace-id": currentWorkspace.id },
+        body: JSON.stringify({ name: newName, slug: newSlug || newName.toLowerCase().replace(/\s+/g, "-") }),
       });
-      const result = await response.json();
-      if (result.success) {
-        setBrands([...brands, result.data]);
-        setNewBrandName("");
-        setNewBrandSlug("");
+      const data = await res.json();
+      if (data.success) {
+        setBrands([...brands, data.data]);
+        setNewName("");
+        setNewSlug("");
         setShowCreateForm(false);
-      } else {
-        setError(result.error?.message || "Failed to create brand");
       }
-    } catch {
-      setError("Network error");
     } finally {
       setLoading(false);
     }
@@ -70,88 +88,125 @@ export function SettingsPage() {
     try {
       await fetch(`/api/v1/brands/${id}`, { method: "DELETE" });
       setBrands(brands.filter((b) => b.id !== id));
-    } catch {
-      setError("Failed to delete brand");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleConnectPlatform = async (platform: string) => {
+  const handleCreateWorkspace = async () => {
+    if (!newWorkspaceName.trim()) return;
+    setLoading(true);
     try {
-      const response = await fetch(`/api/v1/social/connect/${platform}`);
-      const result = await response.json();
-      if (result.success) {
-        window.location.href = result.data.authUrl;
+      const res = await fetch("/api/v1/workspaces", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: newWorkspaceName,
+          slug: newWorkspaceSlug || newWorkspaceName.toLowerCase().replace(/\s+/g, "-"),
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        await refresh();
+        setNewWorkspaceName("");
+        setNewWorkspaceSlug("");
+        setShowWorkspaceForm(false);
       }
-    } catch {
-      setError("Failed to initiate connection");
-    }
-  };
-
-  const handleDisconnectAccount = async (id: string) => {
-    try {
-      await fetch(`/api/v1/social/${id}`, { method: "DELETE" });
-      setSocialAccounts(socialAccounts.filter((a) => a.id !== id));
-    } catch {
-      setError("Failed to disconnect account");
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Settings"
-        description="Manage your workspace, brands, and connected accounts"
-      />
+      <PageHeader title="Settings" description="Manage workspaces, brands, and connected accounts" />
 
       {/* Tabs */}
       <div className="flex gap-1 rounded-lg bg-muted p-1 w-fit">
         <button
           onClick={() => setActiveTab("workspace")}
           className={`px-4 py-2 text-sm font-medium rounded-md transition-fast ${
-            activeTab === "workspace"
-              ? "bg-card text-foreground shadow-sm"
-              : "text-muted-foreground hover:text-foreground"
+            activeTab === "workspace" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
           }`}
         >
-          Workspace
+          <Building2 className="h-4 w-4 inline mr-2" />
+          Workspaces
         </button>
         <button
           onClick={() => setActiveTab("brands")}
           className={`px-4 py-2 text-sm font-medium rounded-md transition-fast ${
-            activeTab === "brands"
-              ? "bg-card text-foreground shadow-sm"
-              : "text-muted-foreground hover:text-foreground"
+            activeTab === "brands" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
           }`}
         >
           Brands & Accounts
         </button>
       </div>
 
-      {error && <ErrorState title="Error" description={error} onRetry={() => setError(null)} />}
-
       {activeTab === "workspace" && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Workspace Settings</CardTitle>
-            <CardDescription>Configure your workspace name, timezone, and preferences</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-sm text-muted-foreground">Workspace settings will be available in the next update.</p>
-          </CardContent>
-        </Card>
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold">Workspaces</h3>
+              <p className="text-sm text-muted-foreground">Manage your workspaces and team members</p>
+            </div>
+            <Button onClick={() => setShowWorkspaceForm(true)} size="sm">
+              <Plus className="h-4 w-4 mr-2" />
+              New Workspace
+            </Button>
+          </div>
+
+          {showWorkspaceForm && (
+            <Card>
+              <CardHeader><CardTitle className="text-base">Create Workspace</CardTitle></CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Name</label>
+                  <Input value={newWorkspaceName} onChange={(e) => setNewWorkspaceName(e.target.value)} placeholder="My Workspace" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Slug</label>
+                  <Input value={newWorkspaceSlug} onChange={(e) => setNewWorkspaceSlug(e.target.value)} placeholder={newWorkspaceName.toLowerCase().replace(/\s+/g, "-")} />
+                </div>
+                <div className="flex gap-2">
+                  <Button onClick={handleCreateWorkspace} disabled={loading || !newWorkspaceName.trim()}>Create</Button>
+                  <Button variant="ghost" onClick={() => setShowWorkspaceForm(false)}>Cancel</Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          <div className="space-y-3">
+            {workspaces.map((ws: WorkspaceFromAPI) => (
+              <Card key={ws.id} className={ws.id === currentWorkspace?.id ? "border-primary/50" : ""}>
+                <CardContent className="flex items-center justify-between py-4">
+                  <div className="flex items-center gap-3">
+                    <div className="rounded-lg bg-primary/10 p-2">
+                      <Building2 className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <p className="font-medium">{ws.name}</p>
+                      <p className="text-xs text-muted-foreground">/{ws.slug} · {ws._count?.brands || 0} brands · {ws._count?.members || 1} members</p>
+                    </div>
+                  </div>
+                  {ws.id === currentWorkspace?.id && <Badge>Active</Badge>}
+                </CardContent>
+              </Card>
+            ))}
+            {workspaces.length === 0 && (
+              <EmptyState icon={Building2} title="No workspaces" description="Create your first workspace to get started" actionLabel="Create Workspace" onAction={() => setShowWorkspaceForm(true)} />
+            )}
+          </div>
+        </div>
       )}
 
       {activeTab === "brands" && (
         <div className="space-y-6">
-          {/* Brands Section */}
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-lg font-semibold">Brands</h3>
               <p className="text-sm text-muted-foreground">Manage your social media brands</p>
             </div>
-            <Button onClick={() => setShowCreateForm(true)} size="sm">
+            <Button onClick={() => setShowCreateForm(true)} size="sm" disabled={!currentWorkspace}>
               <Plus className="h-4 w-4 mr-2" />
               Add Brand
             </Button>
@@ -159,56 +214,33 @@ export function SettingsPage() {
 
           {showCreateForm && (
             <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Create Brand</CardTitle>
-              </CardHeader>
+              <CardHeader><CardTitle className="text-base">Create Brand</CardTitle></CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Name</label>
-                  <Input
-                    value={newBrandName}
-                    onChange={(e) => setNewBrandName(e.target.value)}
-                    placeholder="My Brand"
-                  />
+                  <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="My Brand" />
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Slug</label>
-                  <Input
-                    value={newBrandSlug}
-                    onChange={(e) => setNewBrandSlug(e.target.value)}
-                    placeholder={newBrandName.toLowerCase().replace(/\s+/g, "-") || "my-brand"}
-                  />
+                  <Input value={newSlug} onChange={(e) => setNewSlug(e.target.value)} placeholder={newName.toLowerCase().replace(/\s+/g, "-")} />
                 </div>
                 <div className="flex gap-2">
-                  <Button onClick={handleCreateBrand} disabled={loading || !newBrandName.trim()}>
-                    {loading ? "Creating..." : "Create"}
-                  </Button>
-                  <Button variant="ghost" onClick={() => setShowCreateForm(false)}>
-                    Cancel
-                  </Button>
+                  <Button onClick={handleCreateBrand} disabled={loading || !newName.trim()}>Create</Button>
+                  <Button variant="ghost" onClick={() => setShowCreateForm(false)}>Cancel</Button>
                 </div>
               </CardContent>
             </Card>
           )}
 
           {brands.length === 0 && !showCreateForm ? (
-            <EmptyState
-              icon={Plus}
-              title="No brands yet"
-              description="Create your first brand to start connecting social media accounts"
-              actionLabel="Add Brand"
-              onAction={() => setShowCreateForm(true)}
-            />
+            <EmptyState icon={Plus} title="No brands yet" description="Create your first brand to connect social accounts" actionLabel="Add Brand" onAction={() => setShowCreateForm(true)} />
           ) : (
             <div className="space-y-3">
               {brands.map((brand) => (
                 <Card key={brand.id}>
                   <CardContent className="flex items-center justify-between py-4">
                     <div className="flex items-center gap-3">
-                      <div
-                        className="h-10 w-10 rounded-lg flex items-center justify-center text-white font-bold text-sm"
-                        style={{ backgroundColor: brand.color || "#6C5CE7" }}
-                      >
+                      <div className="h-10 w-10 rounded-lg flex items-center justify-center text-white font-bold text-sm" style={{ backgroundColor: brand.color || "#6C5CE7" }}>
                         {brand.name[0].toUpperCase()}
                       </div>
                       <div>
@@ -217,18 +249,9 @@ export function SettingsPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
-                      <Badge variant="secondary">
-                        {brand._count.socialAccounts} account{brand._count.socialAccounts !== 1 ? "s" : ""}
-                      </Badge>
-                      <Button variant="ghost" size="icon">
-                        <Edit2 className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleDeleteBrand(brand.id)}
-                        className="text-destructive hover:text-destructive"
-                      >
+                      <Badge variant="secondary">{brand._count?.socialAccounts || 0} accounts</Badge>
+                      <Button variant="ghost" size="icon"><Edit2 className="h-4 w-4" /></Button>
+                      <Button variant="ghost" size="icon" onClick={() => handleDeleteBrand(brand.id)} className="text-destructive hover:text-destructive">
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
@@ -237,76 +260,16 @@ export function SettingsPage() {
               ))}
             </div>
           )}
-
-          {/* Social Accounts Section */}
-          <div className="pt-6 border-t">
-            <h3 className="text-lg font-semibold mb-1">Connected Accounts</h3>
-            <p className="text-sm text-muted-foreground mb-4">Connect your social media platforms</p>
-
-            {socialAccounts.length > 0 && (
-              <div className="space-y-3 mb-6">
-                {socialAccounts.map((account) => (
-                  <Card key={account.id}>
-                    <CardContent className="flex items-center justify-between py-4">
-                      <div className="flex items-center gap-3">
-                        <PlatformIcon platform={account.platform.toLowerCase() as any} />
-                        <div>
-                          <p className="font-medium">{account.accountName}</p>
-                          {account.platformHandle && (
-                            <p className="text-xs text-muted-foreground">@{account.platformHandle}</p>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm text-muted-foreground">
-                          {account.followers.toLocaleString()} followers
-                        </span>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDisconnectAccount(account.id)}
-                          className="text-destructive"
-                        >
-                          Disconnect
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
-
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {[
-                { key: "facebook", label: "Facebook" },
-                { key: "instagram", label: "Instagram" },
-                { key: "youtube", label: "YouTube" },
-              ].map((platform) => (
-                <Card
-                  key={platform.key}
-                  className="cursor-pointer hover:shadow-growthscape-md hover:-translate-y-0.5 transition-normal"
-                  onClick={() => handleConnectPlatform(platform.key)}
-                >
-                  <CardContent className="flex flex-col items-center gap-2 py-6">
-                    <PlatformIcon platform={platform.key as any} size="lg" />
-                    <span className="text-sm font-medium">{platform.label}</span>
-                    <Badge variant="outline" className="text-xs">Connect</Badge>
-                  </CardContent>
-                </Card>
-              ))}
-              {["tiktok", "linkedin", "pinterest", "x"].map((platform) => (
-                <Card key={platform} className="opacity-50">
-                  <CardContent className="flex flex-col items-center gap-2 py-6">
-                    <PlatformIcon platform={platform as any} size="lg" />
-                    <span className="text-sm font-medium">{platform.toUpperCase()}</span>
-                    <Badge variant="outline" className="text-xs">Coming soon</Badge>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </div>
         </div>
       )}
     </div>
+  );
+}
+
+export function SettingsPage() {
+  return (
+    <Suspense fallback={<div className="p-6">Loading...</div>}>
+      <SettingsContent />
+    </Suspense>
   );
 }
