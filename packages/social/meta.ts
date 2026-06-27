@@ -1,105 +1,86 @@
-// Meta Graph API client for Facebook & Instagram
-export interface MetaPage {
-  id: string;
-  name: string;
-  access_token: string;
-  instagram_business_account?: { id: string };
-}
+// Meta (Facebook + Instagram) Graph API adapter
 
-export interface MetaInsightsResponse {
-  data: {
-    name: string;
-    values: { value: number; end_time?: string }[];
-    period?: string;
-    title?: string;
-    description?: string;
-  }[];
-  paging?: { previous?: string; next?: string };
-}
-
-export interface FacebookMetrics {
-  followers: number;
+export interface MetaPageInsights {
+  date: string;
   impressions: number;
   reach: number;
   engagement: number;
-  likes: number;
-  comments: number;
-  shares: number;
-  clicks: number;
+  pageFans: number;
 }
 
-export interface InstagramMetrics {
-  followers: number;
+export interface MetaInstagramInsights {
+  date: string;
   impressions: number;
   reach: number;
   engagement: number;
-  likes: number;
-  comments: number;
-  saves: number;
+  followers: number;
   profileViews: number;
 }
 
-const GRAPH_API_BASE = "https://graph.facebook.com/v18.0";
-
 export const metaApi = {
-  async getPages(accessToken: string): Promise<MetaPage[]> {
-    const response = await fetch(
-      `${GRAPH_API_BASE}/me/accounts?access_token=${accessToken}&fields=id,name,access_token,instagram_business_account{id}`
-    );
-    if (!response.ok) throw new Error(`Meta API error: ${response.statusText}`);
-    const data = await response.json();
+  async getPageInsights(pageId: string, accessToken: string, since: string, until: string): Promise<MetaPageInsights[]> {
+    const fields = ["page_impressions_unique", "page_posts_impressions_unique", "page_post_engagements", "page_fans", "page_impressions", "page_engaged_users"].join(",");
+    const url = `https://graph.facebook.com/v18.0/${pageId}/insights?fields=${fields}&period=day&since=${since}&until=${until}&access_token=${accessToken}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message);
+
+    const metrics: Record<string, Record<string, { value: number; end_time: string }>> = {};
+    for (const insight of data.data || []) {
+      metrics[insight.name] = {};
+      for (const v of insight.values || []) {
+        const date = v.end_time.split("T")[0];
+        metrics[insight.name][date] = v;
+      }
+    }
+
+    const dates = new Set<string>();
+    for (const name of Object.keys(metrics)) {
+      for (const date of Object.keys(metrics[name])) dates.add(date);
+    }
+
+    return Array.from(dates).sort().map((date) => ({
+      date,
+      impressions: metrics["page_impressions"]?.[date]?.value || 0,
+      reach: metrics["page_impressions_unique"]?.[date]?.value || 0,
+      engagement: metrics["page_post_engagements"]?.[date]?.value || 0,
+      pageFans: metrics["page_fans"]?.[date]?.value || 0,
+    }));
+  },
+
+  async getInstagramInsights(igBusinessId: string, accessToken: string, since: string, until: string): Promise<MetaInstagramInsights[]> {
+    const url = `https://graph.facebook.com/v18.0/${igBusinessId}/insights?metric=impressions,reach,profile_views,follower_count&period=day&since=${since}&until=${until}&access_token=${accessToken}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message);
+
+    const metrics: Record<string, Record<string, { value: number }>> = {};
+    for (const insight of data.data || []) {
+      metrics[insight.name] = {};
+      for (const v of insight.values || []) {
+        metrics[insight.name][v.end_time.split("T")[0]] = v;
+      }
+    }
+
+    const dates = new Set<string>();
+    for (const name of Object.keys(metrics)) {
+      for (const date of Object.keys(metrics[name])) dates.add(date);
+    }
+
+    return Array.from(dates).sort().map((date) => ({
+      date,
+      impressions: metrics["impressions"]?.[date]?.value || 0,
+      reach: metrics["reach"]?.[date]?.value || 0,
+      engagement: metrics["profile_views"]?.[date]?.value || 0,
+      followers: metrics["follower_count"]?.[date]?.value || 0,
+      profileViews: metrics["profile_views"]?.[date]?.value || 0,
+    }));
+  },
+
+  async getUserPages(accessToken: string) {
+    const res = await fetch(`https://graph.facebook.com/v18.0/me/accounts?fields=id,name,username,fan_count,instagram_business_account{id,username}&access_token=${accessToken}`);
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message);
     return data.data || [];
-  },
-
-  async getFacebookInsights(
-    pageId: string,
-    accessToken: string,
-    since: string,
-    until: string
-  ): Promise<MetaInsightsResponse> {
-    const params = new URLSearchParams({
-      access_token: accessToken,
-      metric: "page_impressions,page_posts_impressions,page_engaged_users,page_fans,page_post_engagements,page_actions_post_reactions_like_total",
-      since,
-      until,
-    });
-
-    const response = await fetch(`${GRAPH_API_BASE}/${pageId}/insights?${params}`);
-    if (!response.ok) throw new Error(`Meta API error: ${response.statusText}`);
-    return response.json();
-  },
-
-  async getInstagramInsights(
-    igAccountId: string,
-    accessToken: string,
-    since: string,
-    until: string
-  ): Promise<MetaInsightsResponse> {
-    const params = new URLSearchParams({
-      access_token: accessToken,
-      metric: "impressions,reach,profile_views,follower_count,online_followers,email_contacts,get_directions_clicks,text_message_clicks,call_clicks",
-      period: "day",
-      since,
-      until,
-    });
-
-    const response = await fetch(`${GRAPH_API_BASE}/${igAccountId}/insights?${params}`);
-    if (!response.ok) throw new Error(`Meta API error: ${response.statusText}`);
-    return response.json();
-  },
-
-  async getFacebookPostsInsights(
-    pageId: string,
-    accessToken: string
-  ): Promise<MetaInsightsResponse> {
-    const params = new URLSearchParams({
-      access_token: accessToken,
-      fields: "message,created_time,shares,likes.summary(true),comments.summary(true),insights.metric(post_impressions,post_engagements)",
-      since: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
-    });
-
-    const response = await fetch(`${GRAPH_API_BASE}/${pageId}/posts?${params}`);
-    if (!response.ok) throw new Error(`Meta API error: ${response.statusText}`);
-    return response.json();
   },
 };

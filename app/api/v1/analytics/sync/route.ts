@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { successResponse, errorResponse } from "@/lib/api/response";
-import { analyticsService } from "@/features/analytics/lib/services/analytics.service";
+import { inngest } from "@/jobs";
 import { isAppError } from "@/lib/api/errors";
 import { requireUser } from "@/lib/auth/server";
 import type { ErrorCode } from "@/lib/types/api";
@@ -9,14 +9,18 @@ export async function POST(request: NextRequest) {
   try {
     await requireUser();
     const body = await request.json();
-    const { workspaceId, socialAccountId, platform } = body;
+    const { accountId } = body;
 
-    if (!workspaceId || !socialAccountId || !platform) {
-      return errorResponse("BAD_REQUEST" as ErrorCode, "Missing required fields", 400);
+    if (!accountId) {
+      return errorResponse("BAD_REQUEST" as ErrorCode, "accountId is required", 400);
     }
 
-    const result = await analyticsService.triggerSync(workspaceId, socialAccountId, platform);
-    return successResponse(result);
+    await inngest.send({
+      name: "analytics.sync.trigger",
+      data: { accountId },
+    });
+
+    return successResponse({ message: "Sync job queued", accountId });
   } catch (error) {
     if (isAppError(error)) {
       return errorResponse(error.code as ErrorCode, error.message, 401);

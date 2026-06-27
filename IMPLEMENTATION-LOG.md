@@ -28,12 +28,15 @@
 - [x] Auto-create User record on first login (Supabase auth sync)
 - [x] Workspace-level API (CRUD + member management)
 
-### [ ] Social Connections (OAuth)
-- [ ] Facebook OAuth flow
-- [ ] Instagram OAuth flow (via Facebook)
-- [ ] YouTube OAuth flow
-- [ ] Token refresh mechanism
-- [ ] Connection status management
+### [x] Social Connections (OAuth)
+- [x] Facebook OAuth flow (Graph API v18)
+- [x] Instagram OAuth flow (via Facebook)
+- [x] YouTube OAuth flow (Google OAuth2)
+- [x] Token storage in OAuthCredential model
+- [x] Token refresh mechanism (YouTube/Google)
+- [x] Connect/disconnect UI per brand
+- [x] Platform availability flags (3 ready, 5 coming soon)
+- [ ] TikTok, LinkedIn, Pinterest, X, Threads (API adapters pending)
 
 ### [ ] Brand Management
 - [ ] Connect brand to workspace

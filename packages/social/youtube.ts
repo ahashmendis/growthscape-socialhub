@@ -1,119 +1,87 @@
-// YouTube Data API v3 client
+// YouTube Data API v3 + Analytics API adapter
+
 export interface YouTubeChannel {
   id: string;
   title: string;
   customUrl: string;
-  thumbnailUrl: string;
-  subscriberCount: string;
-  videoCount: string;
-  viewCount: string;
+  subscriberCount: number;
+  viewCount: number;
+  videoCount: number;
 }
 
-export interface YouTubeVideo {
-  id: string;
-  title: string;
-  publishedAt: string;
-  viewCount: string;
-  likeCount: string;
-  commentCount: string;
+export interface YouTubeDailyAnalytics {
+  date: string;
+  views: number;
+  estimatedMinutesWatched: number;
+  averageViewDuration: number;
+  subscribersGained: number;
+  likes: number;
+  comments: number;
 }
-
-export interface YouTubeAnalyticsResponse {
-  columnHeaders: { name: string; columnType: string; dataType: string }[];
-  rows: (string | number)[][];
-}
-
-const YOUTUBE_API_BASE = "https://www.googleapis.com/youtube/v3";
-const YOUTUBE_ANALYTICS_BASE = "https://youtubeanalytics.googleapis.com/v2/reports";
 
 export const youtubeApi = {
   async getChannel(accessToken: string): Promise<YouTubeChannel | null> {
-    const params = new URLSearchParams({
-      part: "snippet,statistics",
-      mine: "true",
-      access_token: accessToken,
+    const res = await fetch("https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&mine=true", {
+      headers: { Authorization: `Bearer ${accessToken}` },
     });
-
-    const response = await fetch(`${YOUTUBE_API_BASE}/channels?${params}`);
-    if (!response.ok) throw new Error(`YouTube API error: ${response.statusText}`);
-    const data = await response.json();
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message);
     if (!data.items?.length) return null;
 
-    const item = data.items[0];
+    const ch = data.items[0];
     return {
-      id: item.id,
-      title: item.snippet.title,
-      customUrl: item.snippet.customUrl || "",
-      thumbnailUrl: item.snippet.thumbnails?.default?.url || "",
-      subscriberCount: item.statistics?.subscriberCount || "0",
-      videoCount: item.statistics?.videoCount || "0",
-      viewCount: item.statistics?.viewCount || "0",
+      id: ch.id,
+      title: ch.snippet.title,
+      customUrl: ch.snippet.customUrl || "",
+      subscriberCount: parseInt(ch.statistics.subscriberCount || "0", 10),
+      viewCount: parseInt(ch.statistics.viewCount || "0", 10),
+      videoCount: parseInt(ch.statistics.videoCount || "0", 10),
     };
   },
 
-  async getChannelAnalytics(
-    channelId: string,
-    accessToken: string,
-    startDate: string,
-    endDate: string
-  ): Promise<YouTubeAnalyticsResponse> {
-    const params = new URLSearchParams({
-      ids: `channel==${channelId}`,
-      startDate,
-      endDate,
-      metrics: "views,estimatedMinutesWatched,averageViewDuration,averageViewPercentage,subscribersGained,likes,dislikes,shares,comments",
-      dimensions: "day",
-      sort: "day",
-      access_token: accessToken,
-      maxResults: "1000",
-    });
+  async getDailyAnalytics(accessToken: string, since: string, until: string): Promise<YouTubeDailyAnalytics[]> {
+    const metrics = "views,estimatedMinutesWatched,averageViewDuration,subscribersGained,likes,comments";
+    const url = `https://youtubeanalytics.googleapis.com/v2/reports?ids=channel==MINE&startDate=${since}&endDate=${until}&metrics=${metrics}&dimensions=day&sort=day`;
 
-    const response = await fetch(`${YOUTUBE_ANALYTICS_BASE}?${params}`);
-    if (!response.ok) throw new Error(`YouTube Analytics error: ${response.statusText}`);
-    return response.json();
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message);
+
+    // YouTube Analytics returns data in column-based format:
+    // { columnHeaders: [{name: "day"}, {name: "views"}, ...], rows: [["2024-01-01", 1000, ...], ...] }
+    const headers = data.columnHeaders?.map((h: { name: string }) => h.name) || [];
+    const rows = data.rows || [];
+
+    return rows.map((row: unknown[]) => {
+      const record: Record<string, unknown> = {};
+      headers.forEach((h: string, i: number) => { record[h] = row[i]; });
+      return {
+        date: (record.day as string) || "",
+        views: parseInt(record.views as string || "0", 10),
+        estimatedMinutesWatched: parseInt(record.estimatedMinutesWatched as string || "0", 10),
+        averageViewDuration: parseFloat(record.averageViewDuration as string || "0"),
+        subscribersGained: parseInt(record.subscribersGained as string || "0", 10),
+        likes: parseInt(record.likes as string || "0", 10),
+        comments: parseInt(record.comments as string || "0", 10),
+      };
+    });
   },
 
-  async getVideoList(
-    channelId: string,
-    accessToken: string,
-    maxResults = 50
-  ): Promise<YouTubeVideo[]> {
-    // First get video IDs
-    const searchParams = new URLSearchParams({
-      part: "id",
-      channelId,
-      order: "date",
-      maxResults: maxResults.toString(),
-      type: "video",
-      access_token: accessToken,
+  async refreshAccessToken(refreshToken: string, clientId: string, clientSecret: string): Promise<string> {
+    const res = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        client_id: clientId,
+        client_secret: clientSecret,
+        refresh_token: refreshToken,
+        grant_type: "refresh_token",
+      }),
     });
-
-    const searchResponse = await fetch(`${YOUTUBE_API_BASE}/search?${searchParams}`);
-    if (!searchResponse.ok) throw new Error(`YouTube API error: ${searchResponse.statusText}`);
-    const searchData = await searchResponse.json();
-
-    if (!searchData.items?.length) return [];
-
-    const videoIds = searchData.items.map((item: { id: { videoId: string } }) => item.id.videoId).join(",");
-
-    // Then get video stats
-    const videoParams = new URLSearchParams({
-      part: "snippet,statistics",
-      id: videoIds,
-      access_token: accessToken,
-    });
-
-    const videoResponse = await fetch(`${YOUTUBE_API_BASE}/videos?${videoParams}`);
-    if (!videoResponse.ok) throw new Error(`YouTube API error: ${videoResponse.statusText}`);
-    const videoData = await videoResponse.json();
-
-    return videoData.items.map((item: any) => ({
-      id: item.id,
-      title: item.snippet.title,
-      publishedAt: item.snippet.publishedAt,
-      viewCount: item.statistics.viewCount,
-      likeCount: item.statistics.likeCount,
-      commentCount: item.statistics.commentCount,
-    }));
+    const data = await res.json();
+    if (data.error) throw new Error(data.error_description);
+    return data.access_token;
   },
 };

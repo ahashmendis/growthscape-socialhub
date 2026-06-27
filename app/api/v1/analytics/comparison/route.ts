@@ -10,11 +10,11 @@ export async function GET(request: NextRequest) {
     await requireUser();
     const { searchParams } = new URL(request.url);
     const workspaceId = searchParams.get("workspaceId");
-    const dateFrom = searchParams.get("dateFrom");
-    const dateTo = searchParams.get("dateTo");
+    const dateFrom = searchParams.get("dateFrom") || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+    const dateTo = searchParams.get("dateTo") || new Date().toISOString().split("T")[0];
 
-    if (!workspaceId || !dateFrom || !dateTo) {
-      return errorResponse("BAD_REQUEST" as ErrorCode, "Missing required parameters", 400);
+    if (!workspaceId) {
+      return errorResponse("BAD_REQUEST" as ErrorCode, "workspaceId is required", 400);
     }
 
     const data = await analyticsService.getCrossPlatformComparison(workspaceId, dateFrom, dateTo);

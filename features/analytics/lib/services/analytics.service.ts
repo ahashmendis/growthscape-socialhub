@@ -1,118 +1,130 @@
-import { analyticsRepository } from "../repositories/analytics.repository";
-import { syncJobRepository } from "../repositories/sync-job.repository";
 import { prisma } from "@/lib/db/client";
-import type { DailyAnalytics } from "@prisma/client";
 
 export const analyticsService = {
-  async getDaily(socialAccountId: string, dateFrom: string, dateTo: string) {
-    return analyticsRepository.getDaily(
-      socialAccountId,
-      new Date(dateFrom),
-      new Date(dateTo)
-    );
+  async getDailyAnalytics(params: { socialAccountId: string; dateFrom: string; dateTo: string }) {
+    return prisma.dailyAnalytics.findMany({
+      where: {
+        socialAccountId: params.socialAccountId,
+        date: { gte: new Date(params.dateFrom), lte: new Date(params.dateTo) },
+      },
+      orderBy: { date: "asc" },
+    });
   },
 
-  async getDailyByBrand(brandId: string, dateFrom: string, dateTo: string) {
-    return analyticsRepository.getDailyByBrand(
-      brandId,
-      new Date(dateFrom),
-      new Date(dateTo)
-    );
+  async getAggregatedByBrand(brandId: string, dateFrom: string, dateTo: string) {
+    const accounts = await prisma.socialAccount.findMany({
+      where: { brandId, deletedAt: null, isActive: true },
+      select: { id: true, platform: true, accountName: true },
+    });
+
+    const results = [];
+    for (const account of accounts) {
+      const analytics = await prisma.dailyAnalytics.findMany({
+        where: {
+          socialAccountId: account.id,
+          date: { gte: new Date(dateFrom), lte: new Date(dateTo) },
+        },
+        orderBy: { date: "asc" },
+      });
+
+      const totals = analytics.reduce(
+        (acc, day) => ({
+          impressions: acc.impressions + day.impressions,
+          reach: acc.reach + day.reach,
+          engagement: acc.engagement + day.engagement,
+          views: acc.views + day.views,
+          watchTimeSeconds: acc.watchTimeSeconds + day.watchTimeSeconds,
+          likes: acc.likes + day.likes,
+          comments: acc.comments + day.comments,
+        }),
+        { impressions: 0, reach: 0, engagement: 0, views: 0, watchTimeSeconds: 0, likes: 0, comments: 0 }
+      );
+
+      results.push({ platform: account.platform, accountName: account.accountName, ...totals, days: analytics.length });
+    }
+
+    return results;
   },
 
-  async getAggregated(socialAccountId: string) {
-    const [weekly, monthly, quarterly, annual] = await Promise.all([
-      analyticsRepository.getAggregated(socialAccountId, "WEEKLY"),
-      analyticsRepository.getAggregated(socialAccountId, "MONTHLY"),
-      analyticsRepository.getAggregated(socialAccountId, "QUARTERLY"),
-      analyticsRepository.getAggregated(socialAccountId, "ANNUAL"),
-    ]);
-
-    return { weekly, monthly, quarterly, annual };
-  },
-
-  async getCrossPlatformComparison(
-    workspaceId: string,
-    dateFrom: string,
-    dateTo: string
-  ) {
+  async getCrossPlatformComparison(workspaceId: string, dateFrom: string, dateTo: string) {
     const brands = await prisma.brand.findMany({
       where: { workspaceId, deletedAt: null },
       include: {
         socialAccounts: {
-          where: { isActive: true, deletedAt: null },
+          where: { deletedAt: null, isActive: true },
           include: {
-            dailyAnalytics: {
-              where: {
-                date: {
-                  gte: new Date(dateFrom),
-                  lte: new Date(dateTo),
-                },
-              },
-            },
+            dailyAnalytics: { where: { date: { gte: new Date(dateFrom), lte: new Date(dateTo) } } },
           },
         },
       },
     });
 
-    const result = brands.map((brand) => ({
-      brand: { id: brand.id, name: brand.name },
-      platforms: brand.socialAccounts.map((account) => ({
-        platform: account.platform,
-        handle: account.platformHandle,
-        followers: account.followers,
-        totalImpressions: account.dailyAnalytics.reduce((sum, d) => sum + d.impressions, 0),
-        totalReach: account.dailyAnalytics.reduce((sum, d) => sum + d.reach, 0),
-        totalEngagement: account.dailyAnalytics.reduce((sum, d) => sum + d.engagement, 0),
-        avgEngagementRate: account.dailyAnalytics.length > 0
-          ? account.dailyAnalytics.reduce((sum, d) => sum + d.engagementRate, 0) / account.dailyAnalytics.length
-          : 0,
-      })),
-    }));
-
-    return result;
+    return brands.map((brand) => {
+      const platformTotals: Record<string, { impressions: number; reach: number; engagement: number; followers: number }> = {};
+      for (const account of brand.socialAccounts) {
+        const totals = account.dailyAnalytics.reduce(
+          (acc, day) => ({ impressions: acc.impressions + day.impressions, reach: acc.reach + day.reach, engagement: acc.engagement + day.engagement }),
+          { impressions: 0, reach: 0, engagement: 0 }
+        );
+        platformTotals[account.platform] = { ...totals, followers: account.followers };
+      }
+      return { brandId: brand.id, brandName: brand.name, platforms: platformTotals };
+    });
   },
 
-  async processDailySync(
-    socialAccountId: string,
-    workspaceId: string,
-    metrics: Omit<DailyAnalytics, "id" | "socialAccountId" | "date" | "createdAt" | "updatedAt">
-  ) {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const todayData = await prisma.dailyAnalytics.findUnique({
-      where: {
-        socialAccountId_date: { socialAccountId, date: today },
+  async getDashboardOverview(workspaceId: string, dateFrom: string, dateTo: string) {
+    const brands = await prisma.brand.findMany({
+      where: { workspaceId, deletedAt: null },
+      include: {
+        socialAccounts: {
+          where: { deletedAt: null, isActive: true },
+          include: { dailyAnalytics: { where: { date: { gte: new Date(dateFrom), lte: new Date(dateTo) } } } },
+        },
       },
     });
 
-    if (todayData) {
-      // Calculate deltas
-      const deltaFields = {
-        followersChange: metrics.followers - todayData.followers,
-      };
-      return analyticsRepository.upsertDaily(socialAccountId, today, {
-        ...metrics,
-        ...deltaFields,
-      });
+    let totalFollowers = 0, totalImpressions = 0, totalReach = 0, totalEngagement = 0, totalViews = 0;
+    for (const brand of brands) {
+      for (const account of brand.socialAccounts) {
+        totalFollowers += account.followers;
+        for (const day of account.dailyAnalytics) {
+          totalImpressions += day.impressions;
+          totalReach += day.reach;
+          totalEngagement += day.engagement;
+          totalViews += day.views;
+        }
+      }
     }
 
-    return analyticsRepository.upsertDaily(socialAccountId, today, metrics);
-  },
+    // Previous period comparison
+    const periodDays = new Date(dateTo).getDate() - new Date(dateFrom).getDate();
+    const prevFrom = new Date(dateFrom); prevFrom.setDate(prevFrom.getDate() - periodDays);
+    const prevTo = new Date(dateFrom); prevTo.setDate(prevTo.getDate() - 1);
 
-  async triggerSync(workspaceId: string, socialAccountId: string, platform: string) {
-    const job = await syncJobRepository.create({
-      workspaceId,
-      jobType: "ANALYTICS_INCREMENTAL",
-      provider: platform,
-      socialAccountId,
+    const prevBrands = await prisma.brand.findMany({
+      where: { workspaceId, deletedAt: null },
+      include: {
+        socialAccounts: {
+          where: { deletedAt: null, isActive: true },
+          include: { dailyAnalytics: { where: { date: { gte: prevFrom, lte: prevTo } } } },
+        },
+      },
     });
 
-    return { jobId: job.id };
-  },
+    let prevFollowers = 0, prevImpressions = 0;
+    for (const brand of prevBrands) {
+      for (const account of brand.socialAccounts) {
+        prevFollowers += account.followers;
+        for (const day of account.dailyAnalytics) prevImpressions += day.impressions;
+      }
+    }
 
-  async getSyncJobs(workspaceId: string) {
-    return syncJobRepository.listByWorkspace(workspaceId);
+    return {
+      totalFollowers, totalImpressions, totalReach, totalEngagement, totalViews,
+      followersChange: prevFollowers > 0 ? Math.round(((totalFollowers - prevFollowers) / prevFollowers) * 1000) / 10 : 0,
+      impressionsChange: prevImpressions > 0 ? Math.round(((totalImpressions - prevImpressions) / prevImpressions) * 1000) / 10 : 0,
+      brandCount: brands.length,
+      accountCount: brands.reduce((acc, b) => acc + b.socialAccounts.length, 0),
+    };
   },
 };
